@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -36,6 +37,7 @@ export default function AdminControlPage() {
   const [submissions, setSubmissions] = useState<SubmissionStatus[]>([]);
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
+  const router = useRouter();
 
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -63,6 +65,15 @@ export default function AdminControlPage() {
     }
   }, [statusMessage]);
 
+  const handleAuthError = (status: number, msg: string) => {
+    if (status === 401 || status === 403) {
+      setStatusMessage({ text: msg + " — redirecting to login...", type: "error" });
+      setTimeout(() => router.push("/login"), 1500);
+      return true;
+    }
+    return false;
+  };
+
   const advancePhase = async (targetPhase: string) => {
     setActionLoading(targetPhase);
     setStatusMessage(null);
@@ -75,11 +86,13 @@ export default function AdminControlPage() {
       });
       const data = await res.json();
       if (!res.ok) {
-        setStatusMessage({ text: data.error || "Failed to advance phase", type: "error" });
+        if (!handleAuthError(res.status, data.error)) {
+          setStatusMessage({ text: data.error || "Failed to advance phase", type: "error" });
+        }
       } else {
         setStatusMessage({ text: `Phase changed to "${targetPhase}"`, type: "success" });
+        await refetch();
       }
-      await refetch();
     } catch (err) {
       console.error("Failed:", err);
       setStatusMessage({ text: "Network error", type: "error" });
@@ -101,7 +114,9 @@ export default function AdminControlPage() {
       });
       if (!advRes.ok) {
         const advData = await advRes.json();
-        setStatusMessage({ text: advData.error || "Cannot start simulation", type: "error" });
+        if (!handleAuthError(advRes.status, advData.error)) {
+          setStatusMessage({ text: advData.error || "Cannot start simulation", type: "error" });
+        }
         setActionLoading("");
         return;
       }
@@ -110,7 +125,9 @@ export default function AdminControlPage() {
       const res = await fetch("/api/simulation/run", { method: "POST" });
       const data = await res.json();
       if (!res.ok) {
-        setStatusMessage({ text: "Simulation failed: " + (data.error || "Unknown error"), type: "error" });
+        if (!handleAuthError(res.status, data.error)) {
+          setStatusMessage({ text: "Simulation failed: " + (data.error || "Unknown error"), type: "error" });
+        }
       } else {
         setStatusMessage({ text: "Simulation complete! Results are ready.", type: "success" });
       }
