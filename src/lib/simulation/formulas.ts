@@ -64,14 +64,14 @@ export function calculateGDPGrowth(params: {
   const A = multipliers.productivityFactor;
   const beta = multipliers.tradeMultiplier;
 
-  // 1. PRODUCTION FUNCTION — infra/GDP ratio with diminishing returns
-  const infraRatio = Math.max(0.001, infraSpendBillions / Math.max(gdpBillions, 1));
-  const pop = POPULATION_M[countryName] ?? 100;
-  const laborFactor = Math.pow(Math.log(pop + 1), 0.4);
-  const production = A * Math.pow(infraRatio, 0.5) * laborFactor * 12.0;
+  // 1. PRODUCTION — anchored to country's potential growth rate and productivity factor.
+  // infraSpendingPct is the % of budget allocated to infra (0–100). Sweet spot is ~35%.
+  // This prevents wild swings: a 20% infra team vs 50% infra team gets a smooth 0.6-power difference.
+  const infraScale = Math.pow(Math.max(params.infraSpendingPct, 1) / 35, 0.6);
+  const production = A * multipliers.potentialGrowth * infraScale * 0.75;
 
   // 2. TRADE — β_n × net_exports/GDP × scale factor
-  const trade = beta * netExportsOverGDP * 8.0;
+  const trade = beta * netExportsOverGDP * 4.0;
 
   // 3. INTEREST RATE — directional (stimulus below neutral, drag above)
   let rateEffect: number;
@@ -355,7 +355,8 @@ export function taxRateImpact(rate: number) {
 
 export function subsidySpendingImpact(pct: number) {
   const pctOfGDP = pct / 10;
-  return { unemployment: pctOfGDP * -0.6, approvalRating: pctOfGDP * 3, inflation: pctOfGDP * 0.2 };
+  // Reduced unemployment coefficient to 0.2 (was 0.6) — prevents unemployment collapsing in 1-2 rounds
+  return { unemployment: pctOfGDP * -0.2, approvalRating: pctOfGDP * 3, inflation: pctOfGDP * 0.2 };
 }
 
 export function defenseSpendingImpact(pct: number) {

@@ -43,6 +43,46 @@ function getMetricStatus(key: string, value: number): "healthy" | "warning" | "c
   }
 }
 
+// Plain-English economy summary for players who aren't econ-savvy
+function getEconomySummary(state: {
+  gdpGrowth: number; inflation: number; fiscalDeficit: number;
+  unemployment: number; currencyIndex: number; approvalRating: number;
+} | null): { grade: string; color: string; items: { icon: string; text: string; status: "ok" | "warn" | "bad" }[] } {
+  if (!state) return { grade: "No data yet", color: "text-[#6B6560]", items: [] };
+
+  const items: { icon: string; text: string; status: "ok" | "warn" | "bad" }[] = [];
+
+  // GDP
+  if (state.gdpGrowth > 3)
+    items.push({ icon: "📈", text: `Economy growing at ${state.gdpGrowth.toFixed(1)}% — strong`, status: "ok" });
+  else if (state.gdpGrowth > 0)
+    items.push({ icon: "📊", text: `Economy growing slowly at ${state.gdpGrowth.toFixed(1)}% — needs attention`, status: "warn" });
+  else
+    items.push({ icon: "📉", text: `Economy shrinking (${state.gdpGrowth.toFixed(1)}%) — act fast!`, status: "bad" });
+
+  // Inflation
+  if (state.inflation < 5)
+    items.push({ icon: "✅", text: `Prices stable at ${state.inflation.toFixed(1)}% inflation`, status: "ok" });
+  else if (state.inflation < 9)
+    items.push({ icon: "⚠️", text: `Inflation at ${state.inflation.toFixed(1)}% — raise interest rates`, status: "warn" });
+  else
+    items.push({ icon: "🔥", text: `Inflation crisis: ${state.inflation.toFixed(1)}% — raise rates now!`, status: "bad" });
+
+  // Deficit
+  if (state.fiscalDeficit < 3)
+    items.push({ icon: "✅", text: "Budget balanced — good fiscal discipline", status: "ok" });
+  else if (state.fiscalDeficit < 6)
+    items.push({ icon: "⚠️", text: `Deficit ${state.fiscalDeficit.toFixed(1)}% — reduce borrowing`, status: "warn" });
+  else
+    items.push({ icon: "🚨", text: `High deficit: ${state.fiscalDeficit.toFixed(1)}% — credit rating at risk`, status: "bad" });
+
+  const bads = items.filter(i => i.status === "bad").length;
+  const warns = items.filter(i => i.status === "warn").length;
+  const grade = bads > 1 ? "Economy in Trouble" : bads === 1 ? "Needs Attention" : warns > 1 ? "Holding Steady" : "Performing Well";
+  const color = bads > 1 ? "text-[#C4443A]" : bads === 1 ? "text-[#C4443A]" : warns > 1 ? "text-[#D4943A]" : "text-[#2D8A5E]";
+  return { grade, color, items };
+}
+
 function getCreditRatingStatus(rating: string): "healthy" | "warning" | "critical" {
   if (["AAA", "AA", "A"].includes(rating)) return "healthy";
   if (["BBB", "BB"].includes(rating)) return "warning";
@@ -206,6 +246,33 @@ export default function TeamDashboard() {
           <span className="text-[#6B6560]">{phaseText}</span>
         </span>
       </div>
+
+      {/* ── Economy at a Glance — plain-English summary ── */}
+      {currentState && (() => {
+        const summary = getEconomySummary({
+          gdpGrowth: currentState.gdpGrowth,
+          inflation: currentState.inflation,
+          fiscalDeficit: currentState.fiscalDeficit,
+          unemployment: currentState.unemployment,
+          currencyIndex: currentState.currencyIndex,
+          approvalRating: currentState.approvalRating,
+        });
+        return (
+          <div className="bg-white border border-[#E5E0DA] rounded-xl px-4 py-3 shadow-sm">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-semibold text-[#6B6560] uppercase tracking-widest">Economy at a Glance</span>
+              <span className={`text-sm font-bold font-(family-name:--font-dm-sans) ${summary.color}`}>{summary.grade}</span>
+            </div>
+            <div className="flex flex-wrap gap-x-5 gap-y-1">
+              {summary.items.map((item, i) => (
+                <span key={i} className={`text-xs ${item.status === "ok" ? "text-[#2D8A5E]" : item.status === "warn" ? "text-[#D4943A]" : "text-[#C4443A]"}`}>
+                  {item.icon} {item.text}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
 

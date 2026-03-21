@@ -209,7 +209,10 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
     const newDebt = Math.max(0, (prev.cumulativeDebt ?? 0) + Math.max(0, dec.borrowing));
 
     // 5. GDP Engine
-    const gdpGrowth = calculateGDPGrowth({
+    // In Round 1, trade is not enabled so myImports is empty — supply a baseline
+    // to prevent a uniform -0.5% resource penalty hitting all countries equally.
+    const importsForGDP = scenario?.tradeEnabled ? myImports : { _baseline: 5 };
+    const gdpGrowthRaw = calculateGDPGrowth({
       infraSpendingPct: dec.infraSpending,
       infraSpendBillions: infraAmt,
       gdpBillions: prev.gdp,
@@ -218,11 +221,15 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       debtToGdp,
       borrowingPct: dec.borrowing / 100,
       taxRatePct: dec.taxRate / 100,
-      imports: myImports,
+      imports: importsForGDP,
       countryName: team.name,
       multipliers,
       baseGDPGrowth: prev.gdpGrowth,
     });
+    // Smooth with 30% inertia from previous round — prevents wild round-to-round jumps
+    const gdpGrowth = round === 1
+      ? gdpGrowthRaw
+      : 0.3 * prev.gdpGrowth + 0.7 * gdpGrowthRaw;
 
     // 6. Inflation Engine
     const importFraction = scenario?.tradeEnabled
@@ -244,11 +251,12 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
     const subImpact = subsidySpendingImpact(dec.subsidySpending);
     const defImpact = defenseSpendingImpact(dec.defenseSpending);
 
+    const unemploymentDelta = (subImpact.unemployment || 0)
+      // higher GDP growth reduces unemployment (Okun's law)
+      - Math.max(0, (gdpGrowth - multipliers.potentialGrowth) * 0.3);
+    // Cap per-round change at ±1.5% to prevent unrealistic single-round swings
     const unemployment = Math.max(1.0,
-      prev.unemployment
-      + (subImpact.unemployment || 0)
-      // higher GDP growth reduces unemployment
-      - Math.max(0, (gdpGrowth - multipliers.potentialGrowth) * 0.3)
+      prev.unemployment + Math.max(-1.5, Math.min(1.5, unemploymentDelta))
     );
 
     const militaryStrength = Math.max(10,

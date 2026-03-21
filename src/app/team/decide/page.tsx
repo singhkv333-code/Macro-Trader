@@ -26,6 +26,7 @@ import {
   COMMODITY_BASE_PRICES,
   DECISION_LIMITS,
 } from "@/lib/constants";
+import { ObjectiveCard } from "@/components/game/ObjectiveCard";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -275,6 +276,62 @@ export default function DecidePage() {
 
   const opennessLabel = tradeOpenness < 0.3 ? "Protectionist" : tradeOpenness > 0.7 ? "Open" : "Moderate";
 
+  // ── Live sidebar projections (based on new engine formula) ──────────────────
+  const profA      = (profile?.productivityFactor as number) ?? 1.0;
+  const profGPot   = (profile?.potentialGrowth   as number) ?? 3.0;
+  const profRN     = (profile?.rNeutral          as number) ?? (profGPot + 2.0);
+  const profMu     = (profile?.monetaryPower as number) ?? 1.0;
+
+  const projInfraScale = Math.pow(Math.max(infraSpending, 1) / 35, 0.6);
+  const projProduction = profA * profGPot * projInfraScale * 0.75;
+  const projRateGap    = profRN - interestRate;
+  const projRateEffect = projRateGap > 0
+    ? 0.3  * Math.pow(projRateGap  / profRN, 0.8)
+    : -0.5 * Math.pow(-projRateGap / profRN, 1.2);
+  const projTaxDrag  = 25 * Math.pow(Math.max(0, taxRate / 100 - 0.28), 2)
+                     +  8 * Math.pow(Math.max(0, 0.12 - taxRate / 100), 2);
+  const projDebtFrac = ((currentState as any)?.cumulativeDebt ?? 0) / 100 + borrowing / 100;
+  const projDebtPenalty = projDebtFrac > 0.4
+    ? 0.25 * Math.pow((projDebtFrac - 0.4) / 0.4, 1.2) : 0;
+  const projGDP = projProduction + projRateEffect - projTaxDrag - projDebtPenalty;
+
+  const projInflBase    = 0.6 * (currentState?.inflation ?? 4.0) + 0.4 * 2.0;
+  const projInflMonetary = profMu * (interestRate - profRN);
+  const projInflFiscal   = 0.15 * Math.max(0, borrowing - 3.0);
+  const projInflSubsidy  = (subsidySpending / 10) * 0.2;
+  const projInflation    = projInflBase - projInflMonetary + projInflFiscal + projInflSubsidy;
+
+  const projDeficit = Math.max(-2, borrowing - (taxRate - 20) * 0.3);
+
+  // Derived metrics for ObjectiveCard
+  const currencyIndex = (currentState as any)?.currencyIndex ?? 100;
+  const fxStability = Math.max(0, 1 - Math.abs(currencyIndex - 100) / 20);
+  const diplomacyScore = (currentState as any)?.diplomacyScore ?? 0;
+
+  const STEP_TIPS: Record<number, string> = {
+    0: interestRate < profRN - 1
+      ? `Your rate (${interestRate}%) is below your neutral rate (${profRN}%) — stimulative. Watch inflation.`
+      : interestRate > profRN + 1
+      ? `Your rate (${interestRate}%) is above your neutral rate (${profRN}%) — restrictive. Slows growth but cools inflation.`
+      : `Your rate is near your neutral rate (${profRN}%). Balanced — no big tradeoffs.`,
+    1: infraSpending < 25
+      ? "Infrastructure below 25%: low growth contribution. Try 35–50% for best GDP."
+      : infraSpending > 55
+      ? "Very high infra: growth boost, but leaves little for subsidies and defense."
+      : `Budget split looks reasonable. Infra at ${infraSpending}% gives a solid GDP boost.`,
+    2: "Export your surpluses (green rows). Import your deficits (red rows) to avoid GDP drag.",
+    3: diplomaticAction === "trade_deal"
+      ? "Trade Deals add +0.5% GDP for both nations every round they're active."
+      : diplomaticAction === "sanctions"
+      ? "Sanctions hurt the target but also cost you –0.3% GDP and lower your diplomacy score."
+      : diplomaticAction === "conflict"
+      ? "Military conflicts are high-risk. Win = +1% GDP. Lose = –2.5% GDP + approval crash."
+      : "Trade Deals are the safest diplomatic action — both sides benefit with no downside.",
+    4: projDebtFrac * 100 > 60
+      ? `⚠️ Your debt/GDP will be ${(projDebtFrac * 100).toFixed(0)}% — above 60% threshold. Reduce borrowing.`
+      : "Looks good. Check the impact preview and submit when ready.",
+  };
+
   // ── Steps definition ─────────────────────────────────────────────────────
 
   const stepCompletedMap = [
@@ -312,7 +369,7 @@ export default function DecidePage() {
 
   return (
     <div
-      className="max-w-2xl mx-auto pb-10 animate-fade-in"
+      className="max-w-6xl mx-auto pb-10 animate-fade-in"
       style={{ background: "transparent" }}
     >
       {/* Page header */}
@@ -357,6 +414,30 @@ export default function DecidePage() {
         })}
       </div>
 
+      {/* ── Two-column layout on desktop ──────────────────────────────────────── */}
+      <div className="lg:flex lg:gap-5 lg:items-start">
+
+      {/* Mobile: compact standing summary */}
+      <div className="lg:hidden mb-4 bg-white rounded-xl border border-[#E5E0DA] shadow-sm p-3">
+        <p className="text-[10px] font-semibold text-[#6B6560] uppercase tracking-widest mb-2">Your Standing</p>
+        <div className="flex gap-3 overflow-x-auto text-xs">
+          {[
+            { label: "GDP", val: (currentState?.gdpGrowth ?? 0).toFixed(1) + "%", ok: (currentState?.gdpGrowth ?? 0) > 2 },
+            { label: "Inflation", val: (currentState?.inflation ?? 0).toFixed(1) + "%", ok: (currentState?.inflation ?? 0) < 6 },
+            { label: "Deficit", val: (currentState?.fiscalDeficit ?? 0).toFixed(1) + "%", ok: (currentState?.fiscalDeficit ?? 0) < 4 },
+            { label: "Approval", val: (currentState?.approvalRating ?? 0).toFixed(0) + "%", ok: (currentState?.approvalRating ?? 0) > 50 },
+          ].map(m => (
+            <div key={m.label} className="shrink-0 text-center">
+              <p className="text-[10px] text-[#6B6560]">{m.label}</p>
+              <p className={`font-mono font-bold ${m.ok ? "text-[#2D8A5E]" : "text-[#C4443A]"}`}>{m.val}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Left: form steps */}
+      <div className="flex-1 min-w-0 space-y-0">
+
       {/* ── STEP 1: Monetary Policy ─────────────────────────────────────────── */}
       {currentStep === 0 && (
         <div className="space-y-4">
@@ -367,6 +448,12 @@ export default function DecidePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-5">
+              {/* Plain-English explainer */}
+              <div className="bg-[#F5F2EE] rounded-lg px-3 py-2 text-xs text-[#6B6560] space-y-0.5">
+                <p><span className="font-semibold text-[#2D8A5E]">Lower rate →</span> economy grows faster, prices rise, currency weakens</p>
+                <p><span className="font-semibold text-[#C4443A]">Higher rate →</span> economy slows, inflation cools, currency strengthens</p>
+              </div>
+
               <div className="flex items-center justify-between">
                 <Label className="text-sm text-[#6B6560]">Interest Rate</Label>
                 <div className="text-right">
@@ -480,9 +567,9 @@ export default function DecidePage() {
                 <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-[#C4443A] inline-block" />Defense {defenseSpending}%</span>
               </div>
               {[
-                { key: "infra"   as const, val: infraSpending,   color: "bg-[#2D8A5E]", label: "Infrastructure", hint: "GDP Growth via Cobb-Douglas production" },
-                { key: "subsidy" as const, val: subsidySpending, color: "bg-[#2E75B6]", label: "Subsidies",       hint: "Approval Rating + Employment" },
-                { key: "defense" as const, val: defenseSpending, color: "bg-[#C4443A]", label: "Defense",         hint: "Military Strength (unproductive for GDP)" },
+                { key: "infra"   as const, val: infraSpending,   color: "bg-[#2D8A5E]", label: "Infrastructure", hint: "→ Builds roads, schools, factories. Boosts GDP growth every round." },
+                { key: "subsidy" as const, val: subsidySpending, color: "bg-[#2E75B6]", label: "Subsidies",       hint: "→ Helps citizens with cost of living. Lowers unemployment, raises approval." },
+                { key: "defense" as const, val: defenseSpending, color: "bg-[#C4443A]", label: "Defense",         hint: "→ Strengthens military. Needed to win conflicts and deter attacks." },
               ].map(({ key, val, color, label, hint }) => (
                 <div key={key}>
                   <div className="flex items-center justify-between mb-2">
@@ -507,6 +594,13 @@ export default function DecidePage() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              {/* Plain-English explainer */}
+              <div className="bg-[#F5F2EE] rounded-lg px-3 py-2 text-xs text-[#6B6560] space-y-0.5">
+                <p><span className="font-semibold text-[#2D8A5E]">Borrow 0–3% →</span> safe, helps fund spending shortfalls</p>
+                <p><span className="font-semibold text-[#D4943A]">Borrow 4–6% →</span> manageable but watch your debt total</p>
+                <p><span className="font-semibold text-[#C4443A]">Borrow 7%+ →</span> credit rating drops, GDP penalty when debt/GDP &gt; 60%</p>
+              </div>
+
               <div className="flex items-center justify-between">
                 <Label className="text-sm text-[#6B6560]">Borrowing (% of GDP)</Label>
                 <span className={`text-3xl font-bold font-mono ${borrowing > 8 ? "text-[#C4443A]" : borrowing > 5 ? "text-[#D4943A]" : "text-[#1A1A1A]"}`}>
@@ -1070,6 +1164,124 @@ export default function DecidePage() {
           </Button>
         )}
       </div>
+
+      </div>{/* end left form column */}
+
+      {/* Right: sticky live guide sidebar */}
+      <div className="hidden lg:block w-72 shrink-0">
+        <div className="sticky top-4 space-y-3">
+
+          {/* Section 0: Objective Card — TOP */}
+          <ObjectiveCard
+            country={{ rNeutral: profRN }}
+            currentMetrics={{
+              gdpGrowth:     currentState?.gdpGrowth     ?? 0,
+              inflation:     currentState?.inflation     ?? 4,
+              deficit:       currentState?.fiscalDeficit ?? 0,
+              fxStability,
+              diplomacyScore,
+            }}
+          />
+
+          {/* Section 1: Your Economy Now */}
+          <div className="bg-white rounded-xl border border-[#E5E0DA] shadow-sm p-4">
+            <p className="text-[10px] font-semibold text-[#6B6560] uppercase tracking-widest mb-3">Your Economy Now</p>
+            {currentState ? (
+              <div className="space-y-2">
+                {[
+                  { label: "GDP Growth",    val: currentState.gdpGrowth.toFixed(1) + "%",    ok: currentState.gdpGrowth > 2,    target: "Target: >3%"  },
+                  { label: "Inflation",      val: currentState.inflation.toFixed(1) + "%",    ok: currentState.inflation < 5,    target: "Target: 2–4%" },
+                  { label: "Fiscal Deficit", val: currentState.fiscalDeficit.toFixed(1) + "%",ok: currentState.fiscalDeficit < 4, target: "Target: <4%"  },
+                  { label: "Unemployment",   val: currentState.unemployment.toFixed(1) + "%", ok: currentState.unemployment < 7,  target: "Target: <6%"  },
+                  { label: "Approval",       val: currentState.approvalRating.toFixed(0) + "%",ok: currentState.approvalRating > 50,target: "Target: >60%" },
+                  { label: "Credit Rating",  val: currentState.creditRating ?? "A",           ok: ["AAA","AA","A"].includes(currentState.creditRating ?? "A"), target: "Stay investment grade" },
+                ].map(row => (
+                  <div key={row.label} className="flex items-center justify-between py-1 border-b border-[#F5F2EE] last:border-0">
+                    <div>
+                      <p className="text-xs font-medium text-[#1A1A1A]">{row.label}</p>
+                      <p className="text-[10px] text-[#6B6560]">{row.target}</p>
+                    </div>
+                    <span className={`text-sm font-bold font-mono ${row.ok ? "text-[#2D8A5E]" : "text-[#C4443A]"}`}>
+                      {row.val}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-xs text-[#6B6560]">No data yet — Round 1 results show after simulation.</p>
+            )}
+          </div>
+
+          {/* Section 2: Live Impact Preview */}
+          <div className="bg-white rounded-xl border border-[#E5E0DA] shadow-sm p-4">
+            <p className="text-[10px] font-semibold text-[#6B6560] uppercase tracking-widest mb-1">These Settings Will...</p>
+            <p className="text-[10px] text-[#6B6560] mb-3">Live estimate based on your choices</p>
+            <div className="space-y-2">
+              {[
+                { label: "GDP Growth",    proj: projGDP,      dir: projGDP > 0, suffix: "%", note: projGDP > profGPot ? "above potential 🔥" : projGDP > 0 ? "positive" : "contracting ⚠️" },
+                { label: "Inflation",     proj: projInflation, dir: projInflation < 4, suffix: "%", note: projInflation < 2 ? "deflation risk" : projInflation < 5 ? "on target" : projInflation < 9 ? "rising — watch" : "high — raise rates!" },
+                { label: "Deficit",       proj: projDeficit,   dir: projDeficit < 3, suffix: "%", note: projDeficit < 3 ? "manageable" : projDeficit < 6 ? "watch closely" : "credit risk ⚠️" },
+              ].map(row => (
+                <div key={row.label}>
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-[#6B6560]">{row.label}</span>
+                    <span className={`text-sm font-mono font-bold ${row.dir ? "text-[#2D8A5E]" : "text-[#C4443A]"}`}>
+                      {row.proj > 0 ? "+" : ""}{row.proj.toFixed(1)}{row.suffix}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-[#6B6560]">{row.note}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 3: What Scores Points */}
+          <div className="bg-white rounded-xl border border-[#E5E0DA] shadow-sm p-4">
+            <p className="text-[10px] font-semibold text-[#6B6560] uppercase tracking-widest mb-3">What Scores Points</p>
+            <div className="space-y-2">
+              {[
+                { label: "GDP Growth",        pts: 25, tip: "Higher growth = more points" },
+                { label: "Inflation (2–4% range)", pts: 25, tip: "2–4% sweet spot = max points" },
+                { label: "Low Deficit",       pts: 15, tip: "Borrow less = more points" },
+                { label: "Trade & Currency",  pts: 20, tip: "Export surpluses, stable FX" },
+                { label: "Diplomacy",         pts: 15, tip: "Trade deals help both sides" },
+              ].map(row => (
+                <div key={row.label} className="flex items-start justify-between gap-2 py-1 border-b border-[#F5F2EE] last:border-0">
+                  <div>
+                    <p className="text-xs font-medium text-[#1A1A1A]">{row.label}</p>
+                    <p className="text-[10px] text-[#6B6560]">{row.tip}</p>
+                  </div>
+                  <span className="text-xs font-bold text-[#E8792F] shrink-0">{row.pts}pts</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Section 4: Step-specific tip */}
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+            <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-widest mb-1">💡 Tip</p>
+            <p className="text-xs text-amber-800 leading-relaxed">{STEP_TIPS[currentStep] ?? "Make your decisions and submit."}</p>
+          </div>
+
+          {/* Section 5: Decision quick-reference */}
+          <div className="bg-[#1B2A4A] rounded-xl p-4">
+            <p className="text-[10px] font-semibold text-white/60 uppercase tracking-widest mb-3">Quick Reference</p>
+            <div className="space-y-2 text-xs text-white/80">
+              <p><span className="text-white font-semibold">Interest Rate ↓</span> → growth ↑, inflation ↑</p>
+              <p><span className="text-white font-semibold">Interest Rate ↑</span> → inflation ↓, growth ↓</p>
+              <p><span className="text-white font-semibold">High Infra (35–50%)</span> → best GDP growth</p>
+              <p><span className="text-white font-semibold">High Subsidy</span> → lower unemployment</p>
+              <p><span className="text-white font-semibold">Borrow &gt;6%</span> → credit rating drops</p>
+              <p><span className="text-white font-semibold">Debt &gt;60% GDP</span> → growth penalized</p>
+              <p><span className="text-white font-semibold">Trade Deals</span> → +0.5% GDP for both</p>
+              <p><span className="text-white font-semibold">Sanctions</span> → hurts target & you</p>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      </div>{/* end flex wrapper */}
     </div>
   );
 }

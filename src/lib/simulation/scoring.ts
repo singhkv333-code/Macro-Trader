@@ -3,13 +3,37 @@
  *
  * Total = 100 points
  *   GDP Growth Rate    — 25 pts (cumulative growth across all rounds)
- *   Inflation Stability — 25 pts (distance from 2% target)
+ *   Inflation Stability — 25 pts (2–4% sweet spot, graduated penalty outside)
  *   Budget Deficit      — 15 pts (lower avg deficit = better)
  *   Trade & Forex       — 20 pts (currency stability + trade balance)
  *   Diplomacy Grade     — 15 pts (deals, alliances, penalties)
  */
 
 import { SCORING_WEIGHTS } from "../constants";
+
+/**
+ * Absolute inflation score: 2–4% is the sweet spot (full 25 pts).
+ * Graduated penalty outside the range, floor at 5 pts.
+ */
+export function calculateInflationScore(inflation: number): number {
+  const MAX_POINTS = 25;
+
+  // Sweet spot: full marks
+  if (inflation >= 2.0 && inflation <= 4.0) return MAX_POINTS;
+
+  const distance = inflation < 2.0 ? 2.0 - inflation : inflation - 4.0;
+
+  let penalty: number;
+  if (distance <= 2) {
+    penalty = distance * 2.0;
+  } else if (distance <= 6) {
+    penalty = 4 + (distance - 2) * 2.5;
+  } else {
+    penalty = 14 + (distance - 6) * 1.5;
+  }
+
+  return Math.max(5, MAX_POINTS - penalty);
+}
 
 interface TeamRoundData {
   teamId: string;
@@ -73,7 +97,11 @@ export function calculateScores(allRoundStates: TeamRoundData[][]): TeamScore[] 
     if (states.length === 0) return { teamId, cumulativeGDP: 0, avgInflationDev: 10, avgDeficit: 10, avgCurrencyDev: 20, avgTradeBalance: -10, finalDiplomacy: 0 };
 
     const cumulativeGDP       = states.reduce((s, r) => s + r.gdpGrowth, 0);
-    const avgInflationDev     = states.reduce((s, r) => s + Math.abs(r.inflation - 2.0), 0) / states.length;
+    // Distance from 2–4% range (0 if inside range)
+    const avgInflationDev     = states.reduce((s, r) => {
+      const dev = r.inflation < 2.0 ? 2.0 - r.inflation : r.inflation > 4.0 ? r.inflation - 4.0 : 0;
+      return s + dev;
+    }, 0) / states.length;
     const avgDeficit          = states.reduce((s, r) => s + r.fiscalDeficit, 0) / states.length;
     const avgCurrencyDev      = states.reduce((s, r) => s + Math.abs(r.currencyIndex - 100), 0) / states.length;
     const avgTradeBalance     = states.reduce((s, r) => s + r.tradeBalance, 0) / states.length;
@@ -100,10 +128,15 @@ export function calculateScores(allRoundStates: TeamRoundData[][]): TeamScore[] 
         tm.cumulativeGDP, Math.max(...cumulativeGDPs), Math.min(...cumulativeGDPs),
         SCORING_WEIGHTS.cumulativeGDP, false
       ),
-      inflationStability: interpolateScore(
-        tm.avgInflationDev, Math.min(...inflationDevs), Math.max(...inflationDevs),
-        SCORING_WEIGHTS.inflationStability, true
-      ),
+      // Use absolute range-based scoring (2–4% = max, graduated penalty outside)
+      inflationStability: (() => {
+        const states = allRoundStates
+          .map(round => round.find(s => s.teamId === tm.teamId))
+          .filter((s): s is TeamRoundData => s != null);
+        if (states.length === 0) return SCORING_WEIGHTS.inflationStability * 0.2;
+        const avgScore = states.reduce((sum, r) => sum + calculateInflationScore(r.inflation), 0) / states.length;
+        return Math.min(SCORING_WEIGHTS.inflationStability, avgScore);
+      })(),
       fiscalDiscipline: interpolateScore(
         tm.avgDeficit, Math.min(...deficits), Math.max(...deficits),
         SCORING_WEIGHTS.fiscalDiscipline, true
