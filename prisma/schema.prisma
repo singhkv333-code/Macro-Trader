@@ -1,0 +1,204 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model User {
+  id        String   @id @default(cuid())
+  username  String   @unique
+  password  String
+  role      String
+  teamId    String?
+  team      Team?    @relation(fields: [teamId], references: [id])
+  createdAt DateTime @default(now())
+}
+
+model Team {
+  id             String          @id @default(cuid())
+  name           String          @unique
+  color          String
+  flagEmoji      String
+  users          User[]
+  decisions      Decision[]
+  roundStates    RoundState[]
+  tradeOrders    TradeOrder[]
+  powerUpUsages  PowerUpUsage[]
+  countryProfile CountryProfile?
+  createdAt      DateTime        @default(now())
+}
+
+model CountryProfile {
+  id          String @id @default(cuid())
+  teamId      String @unique
+  team        Team   @relation(fields: [teamId], references: [id])
+  countryName String
+
+  // V2 Engine Multipliers
+  productivityFactor Float @default(1.0)   // A_n — scales Cobb-Douglas production
+  tradeMultiplier    Float @default(1.0)   // β_n — trade contribution to GDP
+  monetaryPower      Float @default(1.0)   // μ_n — interest rate effectiveness on inflation
+  taxEfficiency      Float @default(0.80)  // collect_eff — tax collection efficiency
+  potentialGrowth    Float @default(3.0)   // g_potential_n — output gap reference (%)
+  creditSpread       Float @default(0.02)  // borrowing cost premium on top of base rate
+  startingDebtToGdp  Float @default(0.50)  // starting debt/GDP ratio (e.g. 0.82 = 82%)
+
+  // Starting Conditions (based on real-world data)
+  startingGdpBillions  Float  @default(1000)
+  startingGdpGrowth    Float  @default(3.0)
+  startingInflation    Float  @default(4.0)
+  startingForex        Float  @default(200)
+  startingMilitary     Float  @default(50)
+  startingCreditRating String @default("A")
+
+  // V2 rebalance additions
+  rNeutral           Float  @default(5.0)   // per-country neutral interest rate
+  startingRevenue    Float  @default(0)     // pre-computed tax revenue ($B at default 20% tax)
+  startingDebtService Float @default(0)    // pre-computed annual debt service ($B)
+  startingNetBudget  Float  @default(0)    // startingRevenue - startingDebtService
+
+  // Resource Endowments (production vs consumption units, net = prod - cons)
+  oilProduction      Float @default(5)
+  oilConsumption     Float @default(5)
+  metalsProduction   Float @default(5)
+  metalsConsumption  Float @default(5)
+  foodProduction     Float @default(5)
+  foodConsumption    Float @default(5)
+  semisProduction    Float @default(3)
+  semisConsumption   Float @default(5)
+  pharmaProduction   Float @default(5)
+  pharmaConsumption  Float @default(4)
+  textilesProduction Float @default(4)
+  textilesConsumption Float @default(5)
+
+  // Power-Up (one-time use)
+  powerUpName        String @default("Economic Stimulus")
+  powerUpDescription String @default("Boost GDP growth by 1.5% for one round.")
+  powerUpUsed        Boolean @default(false)
+}
+
+model Game {
+  id                   String   @id @default(cuid())
+  currentRound         Int      @default(0)
+  phase                String   @default("waiting")
+  globalEvent          String?
+  oilPriceIndex        Float    @default(100)
+  isLeaderboardVisible Boolean  @default(true)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+}
+
+model Decision {
+  id               String   @id @default(cuid())
+  teamId           String
+  team             Team     @relation(fields: [teamId], references: [id])
+  round            Int
+  interestRate     Float
+  taxRate          Float
+  infraSpending    Float
+  subsidySpending  Float
+  defenseSpending  Float
+  borrowing        Float
+  tradeOpenness    Float    @default(0.5) // 0.0=protectionist, 1.0=fully open
+  diplomaticAction String
+  diplomaticTarget String?
+  usePowerUp       Boolean  @default(false)
+  // Computed after simulation
+  budgetTotal   Float?   // Total available budget ($B)
+  infraSpend    Float?   // $ spent on infrastructure ($B)
+  subsidySpend  Float?   // $ spent on subsidies ($B)
+  defenseSpend  Float?   // $ spent on defense ($B)
+  submittedAt      DateTime @default(now())
+
+  @@unique([teamId, round])
+}
+
+model TradeOrder {
+  id        String   @id @default(cuid())
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  round     Int
+  commodity String   // "oil", "metals", "food", "semis", "pharma", "textiles"
+  direction String   // "export" or "import"
+  quantity  Float
+  createdAt DateTime @default(now())
+
+  @@unique([teamId, round, commodity, direction])
+}
+
+model TradeTransaction {
+  id           String   @id @default(cuid())
+  round        Int
+  commodity    String
+  worldPrice   Float
+  totalSupply  Float
+  totalDemand  Float
+  createdAt    DateTime @default(now())
+
+  @@unique([round, commodity])
+}
+
+model RoundState {
+  id               String @id @default(cuid())
+  teamId           String
+  team             Team   @relation(fields: [teamId], references: [id])
+  round            Int
+  gdpGrowth        Float
+  gdp              Float
+  inflation        Float
+  unemployment     Float  @default(6.0)
+  fiscalDeficit    Float
+  currencyIndex    Float
+  forexReserves    Float
+  militaryStrength Float
+  approvalRating   Float
+  tradeIncome      Float
+  taxRevenue       Float
+  creditRating     String
+  trustScore       Float  @default(80)
+  // V2 additions
+  tradeBalance     Float  @default(0)   // net trade surplus/deficit in units
+  diplomacyScore   Float  @default(0)   // running diplomatic score
+  treasury         Float  @default(0)   // unspent budget carryover
+  cumulativeDebt   Float  @default(0)   // total accumulated debt (% of GDP)
+  // Per-metric score breakdown (computed by scoring engine)
+  gdpScore        Float?
+  inflationScore  Float?
+  fiscalScore     Float?
+  forexScore      Float?
+  revenue         Float?   // tax revenue this round ($B)
+  debtServicePaid Float?   // debt service paid this round ($B)
+  budgetAvailable Float?   // total budget available ($B)
+
+  @@unique([teamId, round])
+}
+
+model PowerUpUsage {
+  id          String   @id @default(cuid())
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id])
+  round       Int
+  powerUpName String
+  effectJson  String   // JSON string describing what the power-up did
+  createdAt   DateTime @default(now())
+}
+
+model DiplomaticRelation {
+  id         String   @id @default(cuid())
+  fromTeamId String
+  toTeamId   String
+  type       String
+  round      Int
+  active     Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model NewsEvent {
+  id        String   @id @default(cuid())
+  round     Int
+  headline  String
+  type      String
+  createdAt DateTime @default(now())
+}

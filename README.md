@@ -1,36 +1,47 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Macro Trader
 
-## Getting Started
+Macro Trader is a real-time multiplayer economic simulation game built for a college event. Teams act as fictional nations, submit policy decisions each round, and the simulation engine updates macroeconomic outcomes for both the team view and the live admin dashboard.
 
-First, run the development server:
+## Stack
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- Next.js App Router
+- Tailwind CSS + shadcn/ui
+- Prisma + PostgreSQL
+- JWT cookie auth
+- Recharts for dashboard visualization
+
+## Core Routes
+
+- `/login`: admin/team login
+- `/team`: nation dashboard with economy metrics, global intelligence, diplomacy, and news
+- `/team/decide`: round decision submission
+- `/admin`: projector-friendly live dashboard
+- `/admin/control`: round flow and event controls
+- `/admin/setup`: seed default teams or create teams manually
+
+## Setup
+
+Create `macro-trader/.env` with:
+
+```env
+DATABASE_URL="postgresql://..."
+JWT_SECRET="replace-this-in-production"
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Install dependencies and start the app:
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+cd macro-trader
+npm install
+npx prisma migrate deploy
+npx prisma db seed
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+For local development with a fresh database, `npx prisma migrate dev` also works.
 
-## Learn More
+## Notes
 
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- Admin accounts and team users are stored in the database with bcrypt-hashed passwords.
+- The simulation engine lives in `src/lib/simulation`.
+- The admin dashboard uses the weighted game scoring model from the project spec.
