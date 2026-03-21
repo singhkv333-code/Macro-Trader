@@ -6,8 +6,11 @@ import { runSimulation } from "@/lib/simulation/engine";
 export async function POST() {
   try {
     const session = await getSession();
-    if (!session || session.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ error: "Session expired — please log in again" }, { status: 401 });
+    }
+    if (session.role !== "admin") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
     const game = await prisma.game.findFirst();

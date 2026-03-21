@@ -5,8 +5,11 @@ import { getSession } from "@/lib/auth";
 export async function POST(req: NextRequest) {
   try {
     const session = await getSession();
-    if (!session || session.role !== "admin") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    if (!session) {
+      return NextResponse.json({ error: "Session expired — please log in again" }, { status: 401 });
+    }
+    if (session.role !== "admin") {
+      return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
     const { targetPhase } = await req.json();
