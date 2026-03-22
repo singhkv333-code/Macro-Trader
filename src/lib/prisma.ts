@@ -6,13 +6,23 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 function createPrismaClient() {
-  const connectionString = process.env.DATABASE_URL;
+  let connectionString = process.env.DATABASE_URL;
   if (!connectionString) {
     // During build time, return a dummy client — real connections happen at runtime
     return new PrismaClient();
   }
+
+  // Supabase pooler port 5432 = Session mode (holds connection per client — exhausts pool on serverless).
+  // Port 6543 = Transaction mode (releases connection after each query — correct for serverless).
+  // Auto-switch so deployments work even if the env var wasn't updated.
+  if (connectionString.includes("pooler.supabase.com:5432")) {
+    connectionString = connectionString.replace("pooler.supabase.com:5432", "pooler.supabase.com:6543");
+  }
+
   return new PrismaClient({
-    adapter: new PrismaPg({ connectionString }),
+    // max:1 — each serverless function instance uses at most 1 connection.
+    // Without this, pg.Pool defaults to 10, exhausting Supabase's pool_size.
+    adapter: new PrismaPg({ connectionString, max: 1 }),
   });
 }
 
