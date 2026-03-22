@@ -10,7 +10,7 @@ export async function POST(req: NextRequest) {
     }
 
     const { eventType } = await req.json();
-    const game = await prisma.game.findFirst();
+    const game = await prisma.game.findFirst({ orderBy: { createdAt: "desc" } });
     if (!game) {
       return NextResponse.json({ error: "No game found" }, { status: 404 });
     }

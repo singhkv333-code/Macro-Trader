@@ -17,7 +17,7 @@ export async function POST() {
     await prisma.roundState.deleteMany();
 
     // Reset game to round 0, waiting
-    const game = await prisma.game.findFirst();
+    const game = await prisma.game.findFirst({ orderBy: { createdAt: "desc" } });
     if (game) {
       await prisma.game.update({
         where: { id: game.id },

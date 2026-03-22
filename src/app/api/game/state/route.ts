@@ -4,7 +4,7 @@ import { calculateScores } from "@/lib/simulation/scoring";
 
 export async function GET() {
   try {
-    let game = await prisma.game.findFirst();
+    let game = await prisma.game.findFirst({ orderBy: { createdAt: "desc" } });
     if (!game) {
       game = await prisma.game.create({ data: { currentRound: 0, phase: "waiting" } });
     }

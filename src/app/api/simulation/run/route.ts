@@ -20,7 +20,7 @@ export async function POST() {
 
     // Fetch game + teams + decisions in parallel (was 3 sequential round-trips = ~3.6s wasted)
     const [game, teams, allDecisions] = await Promise.all([
-      prisma.game.findFirst(),
+      prisma.game.findFirst({ orderBy: { createdAt: "desc" } }),
       prisma.team.findMany({ select: { id: true } }),
       prisma.decision.findMany({ select: { teamId: true, round: true } }),
     ]);

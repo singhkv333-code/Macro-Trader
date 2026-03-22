@@ -20,9 +20,10 @@ function createPrismaClient() {
   }
 
   return new PrismaClient({
-    // max:1 — each serverless function instance uses at most 1 connection.
-    // Without this, pg.Pool defaults to 10, exhausting Supabase's pool_size.
-    adapter: new PrismaPg({ connectionString, max: 1 }),
+    // max:3 — allows Promise.all to run 3 queries in parallel (vs max:1 which serialises
+    // everything). Transaction mode (port 6543) releases each connection immediately after
+    // the statement, so 3 per-instance is safe even with 15 concurrent team requests.
+    adapter: new PrismaPg({ connectionString, max: 3 }),
   });
 }
 

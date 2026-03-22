@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 
 export async function GET() {
   try {
-    const game = await prisma.game.findFirst();
+    const game = await prisma.game.findFirst({ orderBy: { createdAt: "desc" } });
     if (!game) {
       return NextResponse.json({ error: "No game found" }, { status: 404 });
     }

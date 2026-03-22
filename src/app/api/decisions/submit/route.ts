@@ -9,7 +9,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const game = await prisma.game.findFirst();
+    const game = await prisma.game.findFirst({ orderBy: { createdAt: "desc" } });
     if (!game || game.phase !== "input") {
       return NextResponse.json({ error: "Not accepting decisions right now" }, { status: 400 });
     }

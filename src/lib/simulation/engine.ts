@@ -56,7 +56,7 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       prisma.decision.findMany({ where: { round } }),
       prisma.tradeOrder.findMany({ where: { round } }),
       prisma.roundState.findMany({ where: { round: round - 1 } }),
-      prisma.game.findFirst(),
+      prisma.game.findFirst({ orderBy: { createdAt: "desc" } }),
       prisma.diplomaticRelation.findMany({ where: { active: true } }),
       round >= 2
         ? prisma.roundState.findMany({ where: { round: round - 2 } })
@@ -125,16 +125,16 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       const base = COMMODITY_BASE_PRICES[commodity] ?? 100;
       worldPrices[commodity] = calculateWorldPrice(base, Math.max(totalDemand, 0.1), Math.max(totalSupply, 0.1));
     }
-    // Batch upsert all 6 commodities in parallel
-    await Promise.all(
-      commodities.map((commodity) =>
-        prisma.tradeTransaction.upsert({
-          where: { round_commodity: { round, commodity } },
-          update: { worldPrice: worldPrices[commodity], totalSupply: commodityStats[commodity].supply, totalDemand: commodityStats[commodity].demand },
-          create: { round, commodity, worldPrice: worldPrices[commodity], totalSupply: commodityStats[commodity].supply, totalDemand: commodityStats[commodity].demand },
-        })
-      )
-    );
+    // deleteMany + createMany = 2 queries instead of 6 individual upserts
+    await prisma.tradeTransaction.deleteMany({ where: { round } });
+    await prisma.tradeTransaction.createMany({
+      data: commodities.map((commodity) => ({
+        round, commodity,
+        worldPrice: worldPrices[commodity],
+        totalSupply: commodityStats[commodity].supply,
+        totalDemand: commodityStats[commodity].demand,
+      })),
+    });
   } else {
     // No trade in Round 1 — use base prices
     commodities.forEach(c => { worldPrices[c] = COMMODITY_BASE_PRICES[c] ?? 100; });
@@ -494,24 +494,11 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       news.push({ headline: `Credit agencies warn: ${name}'s deficit hits ${state.fiscalDeficit.toFixed(1)}% of GDP`, type: "economic" });
   }
 
-  // ── 15. Persist — parallel upserts (avoid $transaction which breaks with PgBouncer) ──
+  // ── 15. Persist — deleteMany + createMany = 2 queries instead of 15 upserts ──
+  // deleteMany first so re-running simulation overwrites previous results cleanly.
+  await prisma.roundState.deleteMany({ where: { round } });
   await Promise.all([
-    ...newStates.map((state) =>
-      prisma.roundState.upsert({
-        where: { teamId_round: { teamId: state.teamId, round } },
-        update: {
-          gdpGrowth: state.gdpGrowth, gdp: state.gdp, inflation: state.inflation,
-          unemployment: state.unemployment, fiscalDeficit: state.fiscalDeficit,
-          currencyIndex: state.currencyIndex, forexReserves: state.forexReserves,
-          militaryStrength: state.militaryStrength, approvalRating: state.approvalRating,
-          tradeIncome: state.tradeIncome, taxRevenue: state.taxRevenue,
-          creditRating: state.creditRating, trustScore: state.trustScore,
-          tradeBalance: state.tradeBalance, diplomacyScore: state.diplomacyScore,
-          treasury: state.treasury, cumulativeDebt: state.cumulativeDebt,
-        },
-        create: { ...state, round },
-      })
-    ),
+    prisma.roundState.createMany({ data: newStates.map((s) => ({ ...s, round })) }),
     news.length > 0
       ? prisma.newsEvent.createMany({ data: news.map((item) => ({ round, headline: item.headline, type: item.type })) })
       : Promise.resolve(),
