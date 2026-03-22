@@ -3,7 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { getSession } from "@/lib/auth";
 import { runSimulation } from "@/lib/simulation/engine";
 
+// Allow up to 60 seconds on Vercel — simulation needs ~8-12s with Supabase latency
+export const maxDuration = 60;
+
 export async function POST() {
+  let gameId: string | null = null;
+
   try {
     const session = await getSession();
     if (!session) {
@@ -13,10 +18,17 @@ export async function POST() {
       return NextResponse.json({ error: "Admin access required" }, { status: 403 });
     }
 
-    const game = await prisma.game.findFirst();
+    // Fetch game + teams + decisions in parallel (was 3 sequential round-trips = ~3.6s wasted)
+    const [game, teams, allDecisions] = await Promise.all([
+      prisma.game.findFirst(),
+      prisma.team.findMany({ select: { id: true } }),
+      prisma.decision.findMany({ select: { teamId: true, round: true } }),
+    ]);
+
     if (!game) {
       return NextResponse.json({ error: "No game found" }, { status: 404 });
     }
+    gameId = game.id;
 
     if (game.phase !== "simulating") {
       return NextResponse.json(
@@ -26,12 +38,9 @@ export async function POST() {
     }
 
     // Auto-submit default decisions for teams that haven't submitted
-    const teams = await prisma.team.findMany({ select: { id: true } });
-    const existingDecisions = await prisma.decision.findMany({
-      where: { round: game.currentRound },
-      select: { teamId: true },
-    });
-    const submittedTeamIds = new Set(existingDecisions.map((d) => d.teamId));
+    const submittedTeamIds = new Set(
+      allDecisions.filter((d) => d.round === game.currentRound).map((d) => d.teamId)
+    );
     const unsubmittedTeams = teams.filter((t) => !submittedTeamIds.has(t.id));
 
     if (unsubmittedTeams.length > 0) {
@@ -78,7 +87,7 @@ export async function POST() {
     } catch (simError) {
       console.error("Simulation engine error:", simError);
 
-      // Reset phase back to input so the game isn't stuck
+      // Simulation threw — still move to results so admin isn't stuck
       await prisma.game.update({
         where: { id: game.id },
         data: { phase: "results" },
@@ -94,6 +103,17 @@ export async function POST() {
     }
   } catch (error) {
     console.error("Simulation route error:", error);
+
+    // Outer catch: also reset phase so game is never stuck in "simulating"
+    if (gameId) {
+      try {
+        await prisma.game.update({
+          where: { id: gameId },
+          data: { phase: "results" },
+        });
+      } catch { /* ignore — best effort */ }
+    }
+
     return NextResponse.json({ error: "Simulation failed" }, { status: 500 });
   }
 }

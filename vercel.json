@@ -3,5 +3,10 @@
   "framework": "nextjs",
   "regions": ["bom1"],
   "installCommand": "npm install --legacy-peer-deps",
-  "crons": []
+  "crons": [],
+  "functions": {
+    "src/app/api/simulation/run/route.ts": {
+      "maxDuration": 60
+    }
+  }
 }

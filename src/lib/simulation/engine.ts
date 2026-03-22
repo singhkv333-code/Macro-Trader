@@ -45,9 +45,12 @@ function clamp(value: number, key: keyof typeof CLAMPS): number {
   return Math.max(min, Math.min(max, value));
 }
 
+// Explicit type alias to allow the conditional Promise.resolve([]) to type-check
+type RoundStateRow = Awaited<ReturnType<typeof prisma.roundState.findMany>>;
+
 export async function runSimulation(round: number): Promise<NewsItem[]> {
   // Fetch ALL data needed upfront in one parallel batch — single network round-trip
-  const [teams, decisions, tradeOrders, prevStates, game, existingRelations] =
+  const [teams, decisions, tradeOrders, prevStates, game, existingRelations, prevPrevStatesEarly] =
     await Promise.all([
       prisma.team.findMany({ include: { countryProfile: true } }),
       prisma.decision.findMany({ where: { round } }),
@@ -55,15 +58,14 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       prisma.roundState.findMany({ where: { round: round - 1 } }),
       prisma.game.findFirst(),
       prisma.diplomaticRelation.findMany({ where: { active: true } }),
+      round >= 2
+        ? prisma.roundState.findMany({ where: { round: round - 2 } })
+        : Promise.resolve([] as RoundStateRow),
     ]);
-
-  // Fetch round-2 states separately to avoid circular type inference
-  const prevPrevStatesEarly = round >= 2
-    ? await prisma.roundState.findMany({ where: { round: round - 2 } })
-    : [] as typeof prevStates;
 
   const scenario     = ROUND_SCENARIOS[round];
 
+  
   const news: NewsItem[] = [];
   const teamNames: Record<string, string> = {};
   teams.forEach(t => teamNames[t.id] = t.name);
