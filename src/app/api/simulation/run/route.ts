@@ -32,30 +32,37 @@ export async function POST() {
       select: { teamId: true },
     });
     const submittedTeamIds = new Set(existingDecisions.map((d) => d.teamId));
+    const unsubmittedTeams = teams.filter((t) => !submittedTeamIds.has(t.id));
 
-    for (const team of teams) {
-      if (!submittedTeamIds.has(team.id)) {
-        // Get previous round's decision for defaults, or use baseline
-        const prevDecision = await prisma.decision.findUnique({
-          where: { teamId_round: { teamId: team.id, round: game.currentRound - 1 } },
-        });
-
-        await prisma.decision.create({
-          data: {
-            teamId: team.id,
-            round: game.currentRound,
-            interestRate: prevDecision?.interestRate ?? 5.0,
-            taxRate: prevDecision?.taxRate ?? 20,
-            infraSpending: prevDecision?.infraSpending ?? 34,
-            subsidySpending: prevDecision?.subsidySpending ?? 33,
-            defenseSpending: prevDecision?.defenseSpending ?? 33,
-            borrowing: prevDecision?.borrowing ?? 0,
-            tradeOpenness: prevDecision?.tradeOpenness ?? 0.5,
-            diplomaticAction: "none",
-            diplomaticTarget: null,
-          },
-        });
-      }
+    if (unsubmittedTeams.length > 0) {
+      // Fetch all previous decisions in parallel, then batch-create defaults
+      const prevDecisions = await Promise.all(
+        unsubmittedTeams.map((t) =>
+          prisma.decision.findUnique({
+            where: { teamId_round: { teamId: t.id, round: game.currentRound - 1 } },
+          })
+        )
+      );
+      await Promise.all(
+        unsubmittedTeams.map((team, i) => {
+          const prev = prevDecisions[i];
+          return prisma.decision.create({
+            data: {
+              teamId: team.id,
+              round: game.currentRound,
+              interestRate: prev?.interestRate ?? 5.0,
+              taxRate: prev?.taxRate ?? 20,
+              infraSpending: prev?.infraSpending ?? 34,
+              subsidySpending: prev?.subsidySpending ?? 33,
+              defenseSpending: prev?.defenseSpending ?? 33,
+              borrowing: prev?.borrowing ?? 0,
+              tradeOpenness: prev?.tradeOpenness ?? 0.5,
+              diplomaticAction: "none",
+              diplomaticTarget: null,
+            },
+          });
+        })
+      );
     }
 
     try {

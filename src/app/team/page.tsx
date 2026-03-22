@@ -12,13 +12,8 @@ import {
   TrendingUp,
   TrendingDown,
   DollarSign,
-  Users,
-  Shield,
-  Heart,
   Banknote,
-  CreditCard,
   ArrowUpCircle,
-  Landmark,
   Globe,
   Briefcase,
   Handshake,
@@ -28,7 +23,6 @@ import {
 import { EconomyRadarChart } from "@/components/game/EconomyRadarChart";
 import { LeaderboardBars } from "@/components/game/LeaderboardBars";
 import { NewsTicker } from "@/components/game/NewsTicker";
-import { CountryPassport } from "@/components/game/CountryPassport";
 import { RoundIntroOverlay } from "@/components/game/RoundIntroOverlay";
 
 function getMetricStatus(key: string, value: number): "healthy" | "warning" | "critical" {
@@ -82,22 +76,6 @@ function getEconomySummary(state: {
   const color = bads > 1 ? "text-[#C4443A]" : bads === 1 ? "text-[#C4443A]" : warns > 1 ? "text-[#D4943A]" : "text-[#2D8A5E]";
   return { grade, color, items };
 }
-
-function getCreditRatingStatus(rating: string): "healthy" | "warning" | "critical" {
-  if (["AAA", "AA", "A"].includes(rating)) return "healthy";
-  if (["BBB", "BB"].includes(rating)) return "warning";
-  return "critical";
-}
-
-const creditRatingColor: Record<string, string> = {
-  AAA: "bg-[#2D8A5E]/10 text-[#2D8A5E]",
-  AA:  "bg-[#2D8A5E]/10 text-[#2D8A5E]",
-  A:   "bg-[#2D8A5E]/10 text-[#2D8A5E]",
-  BBB: "bg-[#D4943A]/10 text-[#D4943A]",
-  BB:  "bg-[#D4943A]/10 text-[#D4943A]",
-  B:   "bg-[#C4443A]/10 text-[#C4443A]",
-  junk: "bg-[#C4443A]/15 text-[#C4443A]",
-};
 
 export default function TeamDashboard() {
   const { user } = useAuth();
@@ -159,7 +137,6 @@ export default function TeamDashboard() {
   );
 
   const creditRating = currentState?.creditRating ?? "A";
-  const creditStatus = getCreditRatingStatus(creditRating);
 
   // Leaderboard entries derived from scores
   const previousScoreByTeam = previousScores.reduce<Record<string, number>>((acc, s) => {
@@ -228,6 +205,122 @@ export default function TeamDashboard() {
           </Badge>
         )}
       </div>
+
+      {/* ── Country Profile Banner — horizontal, full width ── */}
+      {profile && (() => {
+        const p = profile as Record<string, unknown>;
+        const gdpB = p.startingGdpBillions as number;
+        const gdpLabel = gdpB >= 1000 ? `$${(gdpB / 1000).toFixed(1)}T` : `$${gdpB}B`;
+        const commodities = [
+          { key: "oil",      label: "Oil",      emoji: "🛢", prod: p.oilProduction as number,      cons: p.oilConsumption as number },
+          { key: "metals",   label: "Metals",   emoji: "⛏", prod: p.metalsProduction as number,   cons: p.metalsConsumption as number },
+          { key: "food",     label: "Food",     emoji: "🌾", prod: p.foodProduction as number,     cons: p.foodConsumption as number },
+          { key: "semis",    label: "Semis",    emoji: "💾", prod: p.semisProduction as number,    cons: p.semisConsumption as number },
+          { key: "pharma",   label: "Pharma",   emoji: "💊", prod: p.pharmaProduction as number,   cons: p.pharmaConsumption as number },
+          { key: "textiles", label: "Textiles", emoji: "👕", prod: p.textilesProduction as number, cons: p.textilesConsumption as number },
+        ].map(c => ({ ...c, net: c.prod - c.cons }));
+        const powerUsed = !!(p.powerUpUsed as boolean);
+        return (
+          <div className="bg-[#1B2A4A] rounded-xl overflow-hidden shadow-sm">
+            {/* ── Row 1: Identity + Economic Fundamentals + Commodity Table ── */}
+            <div className="flex flex-wrap lg:flex-nowrap divide-y lg:divide-y-0 lg:divide-x divide-white/10 px-0">
+
+              {/* Identity block */}
+              <div className="flex items-center gap-3 px-4 py-3 lg:w-48 shrink-0">
+                <span className="text-3xl leading-none">{myTeam?.flagEmoji}</span>
+                <div>
+                  <p className="text-white font-bold text-sm leading-tight">{p.countryName as string || myTeam?.name}</p>
+                  <p className="text-[#A0AEC0] text-[10px] uppercase tracking-widest font-semibold mt-0.5">Country Profile</p>
+                </div>
+              </div>
+
+              {/* Economic fundamentals */}
+              <div className="flex flex-wrap gap-x-5 gap-y-2 px-4 py-3 flex-1 items-center">
+                {[
+                  { label: "GDP",      val: gdpLabel },
+                  { label: "Growth",   val: `${p.startingGdpGrowth as number}%` },
+                  { label: "Inflation", val: `${p.startingInflation as number}%` },
+                  { label: "Debt/GDP", val: `${((p.startingDebtToGdp as number) * 100).toFixed(0)}%` },
+                  { label: "R*",       val: `${p.rNeutral as number}%` },
+                  { label: "Credit",   val: p.startingCreditRating as string },
+                ].map(({ label, val }) => (
+                  <div key={label} className="text-center min-w-[40px]">
+                    <p className="text-[9px] text-[#A0AEC0] uppercase tracking-wider font-semibold">{label}</p>
+                    <p className="text-white text-xs font-mono font-bold mt-0.5">{val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Commodity balance — compact table */}
+              <div className="px-4 py-3 shrink-0">
+                <p className="text-[9px] text-[#A0AEC0] uppercase tracking-wider font-semibold mb-1.5">Commodities</p>
+                <table className="text-[10px] leading-snug">
+                  <thead>
+                    <tr>
+                      <th className="text-left pr-2 text-[#A0AEC0] font-medium pb-0.5"></th>
+                      <th className="text-right pr-1 text-[#A0AEC0] font-medium pb-0.5">Prod</th>
+                      <th className="text-right pr-1 text-[#A0AEC0] font-medium pb-0.5">Cons</th>
+                      <th className="text-right text-[#A0AEC0] font-medium pb-0.5">Net</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commodities.map(c => (
+                      <tr key={c.key}>
+                        <td className="pr-2 text-white/80">{c.emoji} {c.label}</td>
+                        <td className="text-right pr-1 font-mono text-white/70">{c.prod}</td>
+                        <td className="text-right pr-1 font-mono text-white/70">{c.cons}</td>
+                        <td className={`text-right font-mono font-bold ${c.net > 0 ? "text-[#2D8A5E]" : c.net < 0 ? "text-[#C4443A]" : "text-white/50"}`}>
+                          {c.net > 0 ? `+${c.net}` : c.net}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ── Separator ── */}
+            <div className="border-t border-white/10" />
+
+            {/* ── Row 2: Engine Multipliers + Power-Up ── */}
+            <div className="flex flex-wrap lg:flex-nowrap divide-y lg:divide-y-0 lg:divide-x divide-white/10">
+
+              {/* Engine multipliers */}
+              <div className="flex flex-wrap gap-x-5 gap-y-2 px-4 py-3 flex-1 items-center">
+                <p className="text-[9px] text-[#A0AEC0] uppercase tracking-wider font-semibold w-full mb-0">Engine Multipliers</p>
+                {[
+                  { label: "Productivity (A)",   val: `${(p.productivityFactor as number)?.toFixed(2) ?? "—"}` },
+                  { label: "Trade (β)",          val: `${(p.tradeMultiplier as number)?.toFixed(2) ?? "—"}` },
+                  { label: "Monetary (μ)",       val: `${(p.monetaryPower as number)?.toFixed(2) ?? "—"}` },
+                  { label: "Tax Efficiency",     val: `${((p.taxEfficiency as number) * 100).toFixed(0)}%` },
+                  { label: "Potential Growth",   val: `${p.potentialGrowth as number}%` },
+                  { label: "Credit Spread",      val: `${((p.creditSpread as number) * 100).toFixed(1)}%` },
+                ].map(({ label, val }) => (
+                  <div key={label} className="text-center min-w-[60px]">
+                    <p className="text-[9px] text-[#A0AEC0] uppercase tracking-wider font-semibold">{label}</p>
+                    <p className="text-white text-xs font-mono font-bold mt-0.5">{val}</p>
+                  </div>
+                ))}
+              </div>
+
+              {/* Power-up */}
+              <div className={`flex items-start gap-2 px-4 py-3 lg:w-64 shrink-0 ${powerUsed ? "opacity-50" : ""}`}>
+                <span className="text-lg shrink-0 mt-0.5">⚡</span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <p className="text-[9px] text-[#E8792F] uppercase tracking-wider font-semibold">Power-Up</p>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded ${powerUsed ? "bg-white/10 text-white/50" : "bg-[#E8792F]/20 text-[#E8792F]"}`}>
+                      {powerUsed ? "USED" : "AVAILABLE"}
+                    </span>
+                  </div>
+                  <p className="text-white text-[11px] font-semibold leading-tight">{p.powerUpName as string}</p>
+                  <p className="text-[#A0AEC0] text-[10px] leading-snug mt-0.5">{(p.powerUpDescription as string)?.slice(0, 80)}{(p.powerUpDescription as string)?.length > 80 ? "…" : ""}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* ── Context bar ── */}
       <div className="bg-white border border-[#E5E0DA] border-l-4 border-l-[#E8792F] rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
@@ -331,82 +424,6 @@ export default function TeamDashboard() {
             />
           </div>
 
-          {/* Secondary metrics — compact, no sparklines */}
-          <div className="grid grid-cols-2 gap-3">
-            <MetricCard
-              label="Currency Index"
-              value={currentState?.currencyIndex ?? 0}
-              icon={DollarSign}
-              delta={getDelta("currencyIndex")}
-              status={getMetricStatus("currencyIndex", currentState?.currencyIndex ?? 0)}
-              compact
-            />
-            <MetricCard
-              label="Forex Reserves"
-              value={currentState?.forexReserves ?? 0}
-              icon={Landmark}
-              delta={getDelta("forexReserves")}
-              compact
-            />
-            <MetricCard
-              label="Approval Rating"
-              value={currentState?.approvalRating ?? 0}
-              icon={Heart}
-              delta={getDelta("approvalRating")}
-              unit="%"
-              status={getMetricStatus("approvalRating", currentState?.approvalRating ?? 0)}
-              compact
-            />
-            <MetricCard
-              label="Unemployment"
-              value={currentState?.unemployment ?? 0}
-              icon={Users}
-              delta={getDelta("unemployment")}
-              unit="%"
-              status={getMetricStatus("unemployment", currentState?.unemployment ?? 0)}
-              compact
-            />
-          </div>
-
-          {/* Credit Rating card */}
-          <div className="bg-white rounded-xl border border-[#E5E0DA] border-l-4 border-l-[#E5E0DA] p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-[#6B6560] uppercase tracking-widest">
-                Credit Rating
-              </span>
-              <CreditCard className="h-3.5 w-3.5 text-[#6B6560]/60" />
-            </div>
-            <div className="mt-2 flex items-center gap-3">
-              <span className="text-3xl font-bold font-(family-name:--font-ibm-plex-mono) text-[#1A1A1A]">
-                {creditRating}
-              </span>
-              <span
-                className={`text-xs font-semibold px-2 py-0.5 rounded-full ${creditRatingColor[creditRating] ?? "bg-gray-100 text-gray-600"}`}
-              >
-                {creditStatus === "healthy" ? "Investment Grade" : creditStatus === "warning" ? "Watch" : "Speculative"}
-              </span>
-            </div>
-          </div>
-
-          {/* Military strength (compact) */}
-          <div className="bg-white rounded-xl border border-[#E5E0DA] p-3 shadow-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-[10px] font-semibold text-[#6B6560] uppercase tracking-widest">
-                Military Strength
-              </span>
-              <Shield className="h-3.5 w-3.5 text-[#6B6560]/60" />
-            </div>
-            <div className="mt-1 flex items-end gap-2">
-              <span className="text-2xl font-bold font-(family-name:--font-ibm-plex-mono) text-[#1A1A1A] tabular-nums">
-                {(currentState?.militaryStrength ?? 0).toFixed(0)}
-              </span>
-              {getDelta("militaryStrength") !== undefined && getDelta("militaryStrength") !== 0 && (
-                <span className={`text-[11px] font-medium px-1.5 py-0.5 rounded-full mb-0.5 ${(getDelta("militaryStrength") ?? 0) > 0 ? "bg-[#2D8A5E]/10 text-[#2D8A5E]" : "bg-[#C4443A]/10 text-[#C4443A]"}`}>
-                  {(getDelta("militaryStrength") ?? 0) > 0 ? "▲" : "▼"} {Math.abs(getDelta("militaryStrength") ?? 0).toFixed(1)}
-                </span>
-              )}
-            </div>
-          </div>
         </div>
 
         {/* ══ Column 2: Global Intelligence ══ */}
@@ -551,31 +568,6 @@ export default function TeamDashboard() {
             />
           </div>
 
-          {/* Country Passport */}
-          {profile ? (
-            <CountryPassport
-              flagEmoji={myTeam?.flagEmoji ?? "🌐"}
-              teamName={myTeam?.name ?? ""}
-              countryProfile={profile as unknown as Parameters<typeof CountryPassport>[0]["countryProfile"]}
-              creditRating={creditRating}
-            />
-          ) : (
-            <div className="bg-white rounded-xl border border-[#E5E0DA] shadow-sm p-4">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="text-lg">{myTeam?.flagEmoji}</span>
-                <div>
-                  <p className="text-sm font-bold text-[#1A1A1A]">{myTeam?.name}</p>
-                  <p className="text-[10px] text-[#6B6560] uppercase tracking-wider font-semibold">Nation Profile</p>
-                </div>
-              </div>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-xs text-[#6B6560]">Credit Rating:</span>
-                <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${creditRatingColor[creditRating] ?? "bg-gray-100 text-gray-600"}`}>
-                  {creditRating}
-                </span>
-              </div>
-            </div>
-          )}
         </div>
       </div>
 

@@ -106,11 +106,13 @@ export function calculateGDPGrowth(params: {
 
 // ─── Inflation Engine (Modified Phillips Curve) ──────────────────────────────
 /**
- * π = 0.6 × π_prev + 0.4 × π_target          (inertia + anchoring)
- *   + 0.25 × (g - g_potential_n)              (output gap)
- *   - μ_n × (r - r_neutral) / (1 + 0.3×debt) (monetary, less weakened by debt)
- *   + 0.10 × importPriceChange                (import inflation pass-through)
- *   + 0.15 × max(0, deficit - 3%)             (fiscal inflation above 3%)
+ * π = 0.6 × π_prev + 0.4 × π_target
+ *   + 0.25 × (g - g_potential_n)
+ *   - 1.5 × μ_n × (r - r_neutral) / (1 + 0.2×debt)
+ *   + 0.10 × importPriceChange
+ *
+ * Fiscal deficit no longer directly pushes inflation. Rate changes have a
+ * stronger effect, and debt weakens that effect less than before.
  */
 export function calculateInflation(params: {
   prevInflation: number;
@@ -136,17 +138,14 @@ export function calculateInflation(params: {
   // 2. OUTPUT GAP — coefficient 0.25
   const outputGap = 0.25 * (gdpGrowth - multipliers.potentialGrowth);
 
-  // 3. MONETARY EFFECT — less weakened by debt (0.3× instead of 1×)
-  const monetary = multipliers.monetaryPower * (interestRate - rNeutral)
-                   / (1 + 0.3 * debtToGdp);
+  // 3. MONETARY EFFECT — stronger response to policy rates, with lighter debt damping
+  const monetary = 1.5 * multipliers.monetaryPower * (interestRate - rNeutral)
+                   / (1 + 0.2 * debtToGdp);
 
   // 4. IMPORT INFLATION — 10% pass-through
   const importInflation = 0.10 * importPriceChange;
 
-  // 5. FISCAL INFLATION — only kicks in above 3% deficit
-  const fiscalInflation = 0.15 * Math.max(0, budgetDeficitPct - 3.0);
-
-  const inflation = base + outputGap - monetary + importInflation + fiscalInflation;
+  const inflation = base + outputGap - monetary + importInflation;
   return Math.max(-1.0, inflation); // Floor at -1% (mild deflation)
 }
 

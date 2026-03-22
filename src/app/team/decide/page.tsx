@@ -26,6 +26,7 @@ import {
   COMMODITY_BASE_PRICES,
   DECISION_LIMITS,
 } from "@/lib/constants";
+import { calculateGDPGrowth, calculateInflation } from "@/lib/simulation/formulas";
 import { ObjectiveCard } from "@/components/game/ObjectiveCard";
 
 // ── Types ────────────────────────────────────────────────────────────────────
@@ -244,25 +245,48 @@ export default function DecidePage() {
 
   // ── Derived values for live previews ────────────────────────────────────
 
-  const gdp     = currentState?.gdp     ?? 1000;
-  const debt    = (currentState as any)?.cumulativeDebt ?? 0;
-  const debtPct = gdp > 0 ? (debt / gdp) * 100 : 0;
-  const newDebt = debtPct + borrowing;
+  // profile must be declared first — used throughout live preview calculations
+  const profile        = (myTeam as any)?.countryProfile;
+  const powerUpUsed    = !!profile?.powerUpUsed;
+  const powerUpName    = profile?.powerUpName    ?? "Economic Stimulus";
+  const powerUpDesc    = profile?.powerUpDescription ?? "Boost GDP this round.";
 
-  const irGdpImpact   = (5.0 - interestRate) * 0.4;
-  const irInflImpact  = (5.0 - interestRate) * 0.5;
-  const irFxImpact    = (5.0 - interestRate) * -2;
-  const taxGdpImpact  = (taxRate - 20) * -0.08;
+  // Declare all prof* scalars before any formula that needs them
+  const profA    = (profile?.productivityFactor as number) ?? 1.0;
+  const profGPot = (profile?.potentialGrowth   as number) ?? 3.0;
+  const profRN   = (profile?.rNeutral          as number) ?? (profGPot + 2.0);
+  const profMu   = (profile?.monetaryPower     as number) ?? 1.0;
+
+  const gdp = currentState?.gdp ?? (profile?.startingGdpBillions as number ?? 1000);
+
+  // cumulativeDebt is stored as a percentage-of-GDP (e.g. 82 for 82%), NOT absolute dollars.
+  // Dividing by gdp would give a nonsensically small number — use it directly as %.
+  const prevDebtPct = (currentState as any)?.cumulativeDebt ?? (profile?.startingDebtToGdp as number ?? 0) * 100;
+  const newDebt = prevDebtPct + borrowing;   // e.g. 82 + 3 = 85%
+
+  // ── Budget projection matching engine formula exactly ───────────────────
+  const profTaxEff    = (profile?.taxEfficiency as number)  ?? 0.8;
+  const profSpread    = (profile?.creditSpread  as number)  ?? 0.02;
+  const budRevenue    = gdp * (taxRate / 100) * profTaxEff;
+  const budDebtSvc    = (prevDebtPct / 100) * gdp * (0.02 + profSpread);
+  const budNetBudget  = Math.max(0, budRevenue - budDebtSvc);
+  const budBorrowed   = (borrowing / 100) * gdp;
+  const totalBudget   = budNetBudget + budBorrowed;
+
+  // Fiscal deficit from budget constraint (matching calculateFiscalDeficit)
+  const projTotalSpend = totalBudget;  // spending sliders sum to 100% of budget
+  const projDeficit = ((projTotalSpend + budDebtSvc - budRevenue - budBorrowed) / Math.max(gdp, 1)) * 100;
+  // ≈ -tradeIncome/gdp*100 (near zero when balanced; negative = surplus if trade income exists)
+
+  // Review page deltas — kept as simple deltas vs neutral baseline for readability
+  const irGdpImpact      = (profRN - interestRate) * 0.3;   // below neutral → positive
+  const irInflImpact     = profMu * (interestRate - profRN) * 0.5;  // rate hike → lower inflation
+  const irFxImpact       = 0.6 * (interestRate - profRN);            // rate hike → stronger currency
+  const taxGdpImpact     = (taxRate - 20) * -0.08;
   const infraGdpImpact   = (infraSpending / 10) * 0.3;
   const defenseGdpImpact = (defenseSpending / 10) * -0.1;
-
-  const estGdpImpact  = irGdpImpact + taxGdpImpact + infraGdpImpact + defenseGdpImpact;
-  const estInflImpact = irInflImpact + (subsidySpending / 10) * 0.2;
-
-  const powerUpUsed    = !!(myTeam as any)?.countryProfile?.powerUpUsed;
-  const powerUpName    = (myTeam as any)?.countryProfile?.powerUpName    ?? "Economic Stimulus";
-  const powerUpDesc    = (myTeam as any)?.countryProfile?.powerUpDescription ?? "Boost GDP this round.";
-  const profile        = (myTeam as any)?.countryProfile;
+  const estGdpImpact     = irGdpImpact + taxGdpImpact + infraGdpImpact + defenseGdpImpact;
+  const estInflImpact    = (profRN - interestRate) * 0.5 + (subsidySpending / 10) * 0.1;
 
   const interestLabel =
     interestRate < 4.5 ? "Stimulative" :
@@ -276,32 +300,55 @@ export default function DecidePage() {
 
   const opennessLabel = tradeOpenness < 0.3 ? "Protectionist" : tradeOpenness > 0.7 ? "Open" : "Moderate";
 
-  // ── Live sidebar projections (based on new engine formula) ──────────────────
-  const profA      = (profile?.productivityFactor as number) ?? 1.0;
-  const profGPot   = (profile?.potentialGrowth   as number) ?? 3.0;
-  const profRN     = (profile?.rNeutral          as number) ?? (profGPot + 2.0);
-  const profMu     = (profile?.monetaryPower as number) ?? 1.0;
+  // ── Live projections — call the EXACT same engine functions ────────────────
+  const prevInflation = currentState?.inflation ?? (profile?.startingInflation as number ?? 4.0);
+  const prevGdpGrowth = currentState?.gdpGrowth ?? (profile?.startingGdpGrowth as number ?? 3.0);
+  const debtToGdp     = prevDebtPct / 100;
 
-  const projInfraScale = Math.pow(Math.max(infraSpending, 1) / 35, 0.6);
-  const projProduction = profA * profGPot * projInfraScale * 0.75;
-  const projRateGap    = profRN - interestRate;
-  const projRateEffect = projRateGap > 0
-    ? 0.3  * Math.pow(projRateGap  / profRN, 0.8)
-    : -0.5 * Math.pow(-projRateGap / profRN, 1.2);
-  const projTaxDrag  = 25 * Math.pow(Math.max(0, taxRate / 100 - 0.28), 2)
-                     +  8 * Math.pow(Math.max(0, 0.12 - taxRate / 100), 2);
-  const projDebtFrac = ((currentState as any)?.cumulativeDebt ?? 0) / 100 + borrowing / 100;
-  const projDebtPenalty = projDebtFrac > 0.4
-    ? 0.25 * Math.pow((projDebtFrac - 0.4) / 0.4, 1.2) : 0;
-  const projGDP = projProduction + projRateEffect - projTaxDrag - projDebtPenalty;
+  const engineMultipliers = {
+    productivityFactor: profA,
+    tradeMultiplier:    (profile?.tradeMultiplier    as number) ?? 1.0,
+    monetaryPower:      profMu,
+    taxEfficiency:      profTaxEff,
+    potentialGrowth:    profGPot,
+    creditSpread:       profSpread,
+    startingDebtToGdp:  (profile?.startingDebtToGdp as number) ?? 0.5,
+    rNeutral:           profRN,
+  };
 
-  const projInflBase    = 0.6 * (currentState?.inflation ?? 4.0) + 0.4 * 2.0;
-  const projInflMonetary = profMu * (interestRate - profRN);
-  const projInflFiscal   = 0.15 * Math.max(0, borrowing - 3.0);
-  const projInflSubsidy  = (subsidySpending / 10) * 0.2;
-  const projInflation    = projInflBase - projInflMonetary + projInflFiscal + projInflSubsidy;
+  // Round 1 has no trade — engine uses { _baseline: 5 } to avoid resource penalty
+  const projImports = currentRound <= 1 ? { _baseline: 5 } : { _baseline: 5 };
 
-  const projDeficit = Math.max(-2, borrowing - (taxRate - 20) * 0.3);
+  const projGDPRaw = calculateGDPGrowth({
+    infraSpendingPct:   infraSpending,
+    infraSpendBillions: (infraSpending / 100) * totalBudget,
+    gdpBillions:        gdp,
+    netExportsOverGDP:  0,   // no trade orders placed yet — conservative estimate
+    interestRate,
+    debtToGdp,
+    borrowingPct:       borrowing / 100,
+    taxRatePct:         taxRate / 100,
+    imports:            projImports,
+    countryName:        myTeam?.name ?? "",
+    multipliers:        engineMultipliers,
+    baseGDPGrowth:      prevGdpGrowth,
+  });
+
+  // Engine applies 30% inertia for rounds > 1
+  const projGDP = currentRound <= 1
+    ? projGDPRaw
+    : 0.3 * prevGdpGrowth + 0.7 * projGDPRaw;
+
+  const projInflation = calculateInflation({
+    prevInflation,
+    gdpGrowth:        projGDP,
+    interestRate,
+    debtToGdp,
+    importFraction:   0,
+    fxRateChange:     0,
+    budgetDeficitPct: Math.max(0, projDeficit),
+    multipliers:      engineMultipliers,
+  });
 
   // Derived metrics for ObjectiveCard
   const currencyIndex = (currentState as any)?.currencyIndex ?? 100;
@@ -327,8 +374,8 @@ export default function DecidePage() {
       : diplomaticAction === "conflict"
       ? "Military conflicts are high-risk. Win = +1% GDP. Lose = –2.5% GDP + approval crash."
       : "Trade Deals are the safest diplomatic action — both sides benefit with no downside.",
-    4: projDebtFrac * 100 > 60
-      ? `⚠️ Your debt/GDP will be ${(projDebtFrac * 100).toFixed(0)}% — above 60% threshold. Reduce borrowing.`
+    4: newDebt > 60
+      ? `⚠️ Your debt/GDP will be ${newDebt.toFixed(0)}% — above 60% threshold. Reduce borrowing.`
       : "Looks good. Check the impact preview and submit when ready.",
   };
 
@@ -363,6 +410,43 @@ export default function DecidePage() {
     let prev = currentStep - 1;
     while (prev > 0 && steps[prev].locked) prev--;
     setCurrentStep(prev);
+  };
+
+  // ── LiveMetricsBar — persistent outcome preview shown on Steps 0–3 ──────
+  const LiveMetricsBar = () => {
+    const gdpColor =
+      projGDP > 2 ? "text-[#2D8A5E]" :
+      projGDP >= 0 ? "text-[#D4943A]" : "text-[#C4443A]";
+    const inflColor =
+      (projInflation >= 2 && projInflation <= 4) ? "text-[#2D8A5E]" :
+      projInflation <= 7 ? "text-[#D4943A]" : "text-[#C4443A]";
+    const defColor =
+      projDeficit < 3 ? "text-[#2D8A5E]" :
+      projDeficit <= 6 ? "text-[#D4943A]" : "text-[#C4443A]";
+    const debtColor =
+      newDebt < 60 ? "text-[#2D8A5E]" :
+      newDebt <= 90 ? "text-[#D4943A]" : "text-[#C4443A]";
+    return (
+      <div className="bg-[#1B2A4A] rounded-xl px-4 py-3 mt-4">
+        <div className="flex items-center justify-between mb-2">
+          <p className="text-[10px] font-semibold text-white/60 uppercase tracking-widest">Live Outcome Preview</p>
+          <p className="text-[10px] text-white/40 italic">updates as you adjust</p>
+        </div>
+        <div className="grid grid-cols-4 gap-2 text-center">
+          {[
+            { label: "GDP Growth",      val: `${projGDP >= 0 ? "+" : ""}${projGDP.toFixed(1)}%`,   color: gdpColor  },
+            { label: "Inflation",       val: `${projInflation.toFixed(1)}%`,                         color: inflColor },
+            { label: "Fiscal Deficit",  val: `${projDeficit >= 0 ? "+" : ""}${projDeficit.toFixed(1)}%`, color: defColor },
+            { label: "Debt / GDP",      val: `${newDebt.toFixed(1)}%`,                               color: debtColor },
+          ].map(({ label, val, color }) => (
+            <div key={label} className="bg-white/5 rounded-lg py-2 px-1">
+              <p className="text-[9px] text-white/50 uppercase tracking-wider font-semibold mb-1">{label}</p>
+              <p className={`text-sm font-mono font-bold ${color}`}>{val}</p>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
 
   // ── Render ───────────────────────────────────────────────────────────────
@@ -506,6 +590,7 @@ export default function DecidePage() {
               </div>
             </CardContent>
           </Card>
+          <LiveMetricsBar />
         </div>
       )}
 
@@ -652,6 +737,7 @@ export default function DecidePage() {
               )}
             </CardContent>
           </Card>
+          <LiveMetricsBar />
         </div>
       )}
 
@@ -852,6 +938,7 @@ export default function DecidePage() {
               </Card>
             </>
           )}
+          <LiveMetricsBar />
         </div>
       )}
 
@@ -986,6 +1073,7 @@ export default function DecidePage() {
               </CardContent>
             </Card>
           )}
+          <LiveMetricsBar />
         </div>
       )}
 
@@ -1017,7 +1105,7 @@ export default function DecidePage() {
                 <div className="flex items-center justify-between py-2 border-b border-[#F5F2EE]">
                   <span className="text-xs text-[#6B6560] uppercase tracking-wider font-semibold">Fiscal</span>
                   <span className="text-sm font-mono text-[#1A1A1A]">
-                    Tax <span className="font-bold">{taxRate}%</span> — Est. Revenue <span className="font-bold">{((taxRate / 100) * gdp).toFixed(0)}</span>
+                    Tax <span className="font-bold">{taxRate}%</span> — Est. Revenue <span className="font-bold">${budRevenue.toFixed(0)}B</span>
                   </span>
                 </div>
 
@@ -1026,6 +1114,7 @@ export default function DecidePage() {
                   <span className="text-xs text-[#6B6560] uppercase tracking-wider font-semibold">Budget</span>
                   <span className="text-sm font-mono text-[#1A1A1A]">
                     Infra <span className="font-bold">{infraSpending}%</span> / Sub <span className="font-bold">{subsidySpending}%</span> / Def <span className="font-bold">{defenseSpending}%</span>
+                    <span className="text-[#6B6560] ml-1">(of ${totalBudget.toFixed(0)}B)</span>
                   </span>
                 </div>
 
@@ -1088,12 +1177,13 @@ export default function DecidePage() {
               {/* Divider */}
               <div className="border-t border-[#E5E0DA] my-4" />
 
-              {/* Estimated Impact */}
+              {/* Estimated Impact — uses same formulas as the engine */}
               <div className="bg-[#F5F2EE] rounded-xl p-4 space-y-2">
                 <p className="text-xs font-semibold text-[#6B6560] uppercase tracking-wider mb-3">Estimated Impact This Round</p>
                 {[
-                  { label: "GDP Change",       val: estGdpImpact,  positiveGood: true  },
-                  { label: "Inflation Change",  val: estInflImpact, positiveGood: false },
+                  { label: "GDP Growth",       val: projGDP,       positiveGood: true  },
+                  { label: "Inflation",         val: projInflation, positiveGood: false },
+                  { label: "Fiscal Deficit",    val: projDeficit,   positiveGood: false },
                   { label: "New Debt / GDP",    val: newDebt,       positiveGood: false, isAbsolute: true },
                 ].map(({ label, val, positiveGood, isAbsolute }) => (
                   <div key={label} className="flex items-center justify-between">

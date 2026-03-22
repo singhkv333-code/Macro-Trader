@@ -24,6 +24,7 @@ import {
   calculateRevenue,
   calculateDebtService,
   calculateFiscalDeficit,
+  calculateBudget,
   calculateForexDelta,
   calculateApproval,
   calculateWorldPrice,
@@ -45,11 +46,22 @@ function clamp(value: number, key: keyof typeof CLAMPS): number {
 }
 
 export async function runSimulation(round: number): Promise<NewsItem[]> {
-  const teams        = await prisma.team.findMany({ include: { countryProfile: true } });
-  const decisions    = await prisma.decision.findMany({ where: { round } });
-  const tradeOrders  = await prisma.tradeOrder.findMany({ where: { round } });
-  const prevStates   = await prisma.roundState.findMany({ where: { round: round - 1 } });
-  const game         = await prisma.game.findFirst();
+  // Fetch ALL data needed upfront in one parallel batch — single network round-trip
+  const [teams, decisions, tradeOrders, prevStates, game, existingRelations] =
+    await Promise.all([
+      prisma.team.findMany({ include: { countryProfile: true } }),
+      prisma.decision.findMany({ where: { round } }),
+      prisma.tradeOrder.findMany({ where: { round } }),
+      prisma.roundState.findMany({ where: { round: round - 1 } }),
+      prisma.game.findFirst(),
+      prisma.diplomaticRelation.findMany({ where: { active: true } }),
+    ]);
+
+  // Fetch round-2 states separately to avoid circular type inference
+  const prevPrevStatesEarly = round >= 2
+    ? await prisma.roundState.findMany({ where: { round: round - 2 } })
+    : [] as typeof prevStates;
+
   const scenario     = ROUND_SCENARIOS[round];
 
   const news: NewsItem[] = [];
@@ -57,18 +69,19 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
   teams.forEach(t => teamNames[t.id] = t.name);
 
   // ── 1. Process new diplomatic actions ──────────────────────────────────────
+  // existingRelations already fetched above — check in memory
+  const existingRelSet = new Set(
+    existingRelations.map((r) => `${r.fromTeamId}:${r.toTeamId}:${r.type}`)
+  );
+
+  const newDiploActions: Array<{ fromTeamId: string; toTeamId: string; type: string; round: number }> = [];
   for (const dec of decisions) {
     const isAggressive = ["sanctions", "trade_war", "conflict"].includes(dec.diplomaticAction);
     const isDiplomatic = ["trade_deal", "alliance"].includes(dec.diplomaticAction);
-
     if ((isAggressive || isDiplomatic) && dec.diplomaticTarget) {
-      const existing = await prisma.diplomaticRelation.findFirst({
-        where: { fromTeamId: dec.teamId, toTeamId: dec.diplomaticTarget, type: dec.diplomaticAction, active: true },
-      });
-      if (!existing) {
-        await prisma.diplomaticRelation.create({
-          data: { fromTeamId: dec.teamId, toTeamId: dec.diplomaticTarget, type: dec.diplomaticAction, round },
-        });
+      const key = `${dec.teamId}:${dec.diplomaticTarget}:${dec.diplomaticAction}`;
+      if (!existingRelSet.has(key)) {
+        newDiploActions.push({ fromTeamId: dec.teamId, toTeamId: dec.diplomaticTarget, type: dec.diplomaticAction, round });
         const from = teamNames[dec.teamId] || "Unknown";
         const to   = teamNames[dec.diplomaticTarget] || "Unknown";
         if (dec.diplomaticAction === "trade_deal")
@@ -84,8 +97,15 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       }
     }
   }
-
-  const activeRelations = await prisma.diplomaticRelation.findMany({ where: { active: true } });
+  // Batch-insert new diplomatic relations and merge into activeRelations — no extra query
+  if (newDiploActions.length > 0) {
+    await prisma.diplomaticRelation.createMany({ data: newDiploActions });
+  }
+  // Merge newly created relations into existing list (avoid a re-fetch)
+  const activeRelations = [
+    ...existingRelations,
+    ...newDiploActions.map((a, i) => ({ ...a, id: `new_${i}`, active: true, createdAt: new Date() })),
+  ];
 
   // ── 2. World Market Pricing ─────────────────────────────────────────────────
   const commodities = ["oil", "metals", "food", "semis", "pharma", "textiles"];
@@ -93,23 +113,26 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
   const commodityStats: Record<string, { supply: number; demand: number }> = {};
 
   if (scenario?.tradeEnabled) {
+    // Compute all commodity stats first (no DB), then batch-upsert
     for (const commodity of commodities) {
       const exports = tradeOrders.filter(o => o.commodity === commodity && o.direction === "export");
       const imports = tradeOrders.filter(o => o.commodity === commodity && o.direction === "import");
       const totalSupply = exports.reduce((s, o) => s + o.quantity, 0);
       const totalDemand = imports.reduce((s, o) => s + o.quantity, 0);
       commodityStats[commodity] = { supply: totalSupply, demand: totalDemand };
-
       const base = COMMODITY_BASE_PRICES[commodity] ?? 100;
       worldPrices[commodity] = calculateWorldPrice(base, Math.max(totalDemand, 0.1), Math.max(totalSupply, 0.1));
-
-      // Persist trade transaction
-      await prisma.tradeTransaction.upsert({
-        where: { round_commodity: { round, commodity } },
-        update: { worldPrice: worldPrices[commodity], totalSupply, totalDemand },
-        create: { round, commodity, worldPrice: worldPrices[commodity], totalSupply, totalDemand },
-      });
     }
+    // Batch upsert all 6 commodities in parallel
+    await Promise.all(
+      commodities.map((commodity) =>
+        prisma.tradeTransaction.upsert({
+          where: { round_commodity: { round, commodity } },
+          update: { worldPrice: worldPrices[commodity], totalSupply: commodityStats[commodity].supply, totalDemand: commodityStats[commodity].demand },
+          create: { round, commodity, worldPrice: worldPrices[commodity], totalSupply: commodityStats[commodity].supply, totalDemand: commodityStats[commodity].demand },
+        })
+      )
+    );
   } else {
     // No trade in Round 1 — use base prices
     commodities.forEach(c => { worldPrices[c] = COMMODITY_BASE_PRICES[c] ?? 100; });
@@ -193,12 +216,23 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
     const netExportsOverGDP = tradeBalance / Math.max(prev.gdp, 1);
 
     // 4. Fiscal Engine
-    const revenue = calculateRevenue(prev.gdp, dec.taxRate, multipliers.taxEfficiency);
-    const baseRate = dec.interestRate;
-    const debtService = calculateDebtService(prev.cumulativeDebt ?? 0, prev.gdp, baseRate, multipliers.creditSpread);
-    const infraAmt    = (dec.infraSpending / 100) * prev.gdp;
-    const subsidyAmt  = (dec.subsidySpending / 100) * prev.gdp;
-    const defenseAmt  = (dec.defenseSpending / 100) * prev.gdp;
+    // First compute the actual budget available (revenue - debt service + borrowing).
+    // Spending sliders are % of that budget — NOT % of GDP. Applying them to GDP caused
+    // every team to spend 100% of GDP, blowing deficits to the 15% ceiling every round.
+    const budget = calculateBudget({
+      gdpBillions: prev.gdp,
+      taxRate: dec.taxRate / 100,
+      taxEfficiency: multipliers.taxEfficiency,
+      debtToGdp: debtToGdp,
+      creditSpread: multipliers.creditSpread,
+      borrowingPct: dec.borrowing / 100,
+    });
+    const revenue    = budget.revenue;
+    const debtService = budget.debtService;
+    // Apply spending percentages to totalBudget (what the country can actually spend)
+    const infraAmt   = (dec.infraSpending   / 100) * budget.totalBudget;
+    const subsidyAmt = (dec.subsidySpending / 100) * budget.totalBudget;
+    const defenseAmt = (dec.defenseSpending / 100) * budget.totalBudget;
     const totalSpending = infraAmt + subsidyAmt + defenseAmt;
     const { deficit: fiscalDeficit, newBudget: treasury } = calculateFiscalDeficit({
       totalSpending, revenue, tradeIncome: Math.max(0, tradeIncome),
@@ -407,17 +441,20 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
     }
   }
 
-  // ── 13. Leaderboard visibility ──────────────────────────────────────────────
+  // ── 13. Leaderboard visibility — fire-and-forget, don't block persist ───────
   if (scenario?.effects.leaderboardVisible === false && game) {
-    await prisma.game.update({ where: { id: game.id }, data: { isLeaderboardVisible: false } });
+    void prisma.game.update({ where: { id: game.id }, data: { isLeaderboardVisible: false } });
   } else if (game && round > 1) {
     const prev = ROUND_SCENARIOS[round - 1];
     if (prev?.effects.leaderboardVisible === false) {
-      await prisma.game.update({ where: { id: game.id }, data: { isLeaderboardVisible: true } });
+      void prisma.game.update({ where: { id: game.id }, data: { isLeaderboardVisible: true } });
     }
   }
 
   // ── 14. Clamp, credit rating, news headlines ────────────────────────────────
+  // prevPrevStatesEarly was fetched upfront in the initial Promise.all
+  const prevPrevStateMap = new Map(prevPrevStatesEarly.map((s) => [s.teamId, s]));
+
   for (const state of newStates) {
     state.gdpGrowth       = clamp(state.gdpGrowth, "gdpGrowth");
     state.inflation       = clamp(state.inflation, "inflation");
@@ -435,12 +472,8 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
     let consecutiveLow = 0;
     if (prev && prev.fiscalDeficit < 2) {
       consecutiveLow = 1;
-      if (round >= 2) {
-        const pp = await prisma.roundState.findUnique({
-          where: { teamId_round: { teamId: state.teamId, round: round - 2 } },
-        });
-        if (pp && pp.fiscalDeficit < 2) consecutiveLow = 2;
-      }
+      const pp = prevPrevStateMap.get(state.teamId);
+      if (pp && pp.fiscalDeficit < 2) consecutiveLow = 2;
     }
     const lostConflict = conflictResults.some(r => r.loserId === state.teamId);
     state.creditRating = updateCreditRating(prev?.creditRating ?? "A", state.fiscalDeficit, lostConflict, consecutiveLow);
@@ -459,27 +492,28 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       news.push({ headline: `Credit agencies warn: ${name}'s deficit hits ${state.fiscalDeficit.toFixed(1)}% of GDP`, type: "economic" });
   }
 
-  // ── 15. Persist ─────────────────────────────────────────────────────────────
-  for (const state of newStates) {
-    await prisma.roundState.upsert({
-      where: { teamId_round: { teamId: state.teamId, round } },
-      update: {
-        gdpGrowth: state.gdpGrowth, gdp: state.gdp, inflation: state.inflation,
-        unemployment: state.unemployment, fiscalDeficit: state.fiscalDeficit,
-        currencyIndex: state.currencyIndex, forexReserves: state.forexReserves,
-        militaryStrength: state.militaryStrength, approvalRating: state.approvalRating,
-        tradeIncome: state.tradeIncome, taxRevenue: state.taxRevenue,
-        creditRating: state.creditRating, trustScore: state.trustScore,
-        tradeBalance: state.tradeBalance, diplomacyScore: state.diplomacyScore,
-        treasury: state.treasury, cumulativeDebt: state.cumulativeDebt,
-      },
-      create: { ...state, round },
-    });
-  }
-
-  for (const item of news) {
-    await prisma.newsEvent.create({ data: { round, headline: item.headline, type: item.type } });
-  }
+  // ── 15. Persist — parallel upserts (avoid $transaction which breaks with PgBouncer) ──
+  await Promise.all([
+    ...newStates.map((state) =>
+      prisma.roundState.upsert({
+        where: { teamId_round: { teamId: state.teamId, round } },
+        update: {
+          gdpGrowth: state.gdpGrowth, gdp: state.gdp, inflation: state.inflation,
+          unemployment: state.unemployment, fiscalDeficit: state.fiscalDeficit,
+          currencyIndex: state.currencyIndex, forexReserves: state.forexReserves,
+          militaryStrength: state.militaryStrength, approvalRating: state.approvalRating,
+          tradeIncome: state.tradeIncome, taxRevenue: state.taxRevenue,
+          creditRating: state.creditRating, trustScore: state.trustScore,
+          tradeBalance: state.tradeBalance, diplomacyScore: state.diplomacyScore,
+          treasury: state.treasury, cumulativeDebt: state.cumulativeDebt,
+        },
+        create: { ...state, round },
+      })
+    ),
+    news.length > 0
+      ? prisma.newsEvent.createMany({ data: news.map((item) => ({ round, headline: item.headline, type: item.type })) })
+      : Promise.resolve(),
+  ]);
 
   return news;
 }
