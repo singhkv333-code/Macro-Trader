@@ -36,8 +36,8 @@ export function applyCrossCountryEffects(
     currencyIndex: 0,
   }));
 
-  const getDelta = (teamId: string) => deltas.find((d) => d.teamId === teamId)!;
-  const getState = (teamId: string) => allTeamStates.find((s) => s.teamId === teamId)!;
+  const getDelta = (teamId: string) => deltas.find((d) => d.teamId === teamId);
+  const getState = (teamId: string) => allTeamStates.find((s) => s.teamId === teamId);
 
   const activeRelations = relations.filter((r) => r.active);
 
@@ -45,18 +45,22 @@ export function applyCrossCountryEffects(
   activeRelations
     .filter((r) => r.type === "trade_deal")
     .forEach((r) => {
-      getDelta(r.fromTeamId).gdpGrowth += 0.5;
-      getDelta(r.toTeamId).gdpGrowth += 0.5;
+      const from = getDelta(r.fromTeamId); if (from) from.gdpGrowth += 0.5;
+      const to   = getDelta(r.toTeamId);   if (to)   to.gdpGrowth   += 0.5;
     });
 
   // 2. Sanctions: target GDP -1.0%, trade income -30%; sender GDP -0.3%
   activeRelations
     .filter((r) => r.type === "sanctions")
     .forEach((r) => {
-      getDelta(r.toTeamId).gdpGrowth -= 1.0;
+      const targetDelta = getDelta(r.toTeamId);
       const targetState = getState(r.toTeamId);
-      getDelta(r.toTeamId).tradeIncome -= targetState.tradeIncome * 0.3;
-      getDelta(r.fromTeamId).gdpGrowth -= 0.3;
+      if (targetDelta && targetState) {
+        targetDelta.gdpGrowth  -= 1.0;
+        targetDelta.tradeIncome -= targetState.tradeIncome * 0.3;
+      }
+      const senderDelta = getDelta(r.fromTeamId);
+      if (senderDelta) senderDelta.gdpGrowth -= 0.3;
     });
 
   // 3. Trade wars: both GDP -0.8%, inflation +0.5%. Larger GDP takes 30% less damage
@@ -64,13 +68,13 @@ export function applyCrossCountryEffects(
     .filter((r) => r.type === "trade_war")
     .forEach((r) => {
       const fromState = getState(r.fromTeamId);
-      const toState = getState(r.toTeamId);
+      const toState   = getState(r.toTeamId);
+      if (!fromState || !toState) return;
       const fromLarger = fromState.gdp >= toState.gdp;
-
-      getDelta(r.fromTeamId).gdpGrowth -= fromLarger ? 0.8 * 0.7 : 0.8;
-      getDelta(r.toTeamId).gdpGrowth -= fromLarger ? 0.8 : 0.8 * 0.7;
-      getDelta(r.fromTeamId).inflation += 0.5;
-      getDelta(r.toTeamId).inflation += 0.5;
+      const fromDelta = getDelta(r.fromTeamId);
+      const toDelta   = getDelta(r.toTeamId);
+      if (fromDelta) { fromDelta.gdpGrowth -= fromLarger ? 0.8 * 0.7 : 0.8; fromDelta.inflation += 0.5; }
+      if (toDelta)   { toDelta.gdpGrowth   -= fromLarger ? 0.8 : 0.8 * 0.7; toDelta.inflation   += 0.5; }
     });
 
   // 4. If 3+ nations have rates below 4%: 30% chance of global bubble burst
@@ -84,7 +88,8 @@ export function applyCrossCountryEffects(
   // 5. If any nation inflation > 10%: currency crashes -15 points
   allTeamStates.forEach((s) => {
     if (s.inflation > 10) {
-      getDelta(s.teamId).currencyIndex -= 15;
+      const d = getDelta(s.teamId);
+      if (d) d.currencyIndex -= 15;
     }
   });
 
@@ -94,7 +99,7 @@ export function applyCrossCountryEffects(
   if (avgGrowth < 1) {
     deltas.forEach((d) => {
       const state = getState(d.teamId);
-      d.tradeIncome -= state.tradeIncome * 0.5;
+      if (state) d.tradeIncome -= state.tradeIncome * 0.5;
     });
   }
 
@@ -113,7 +118,9 @@ export function applyCrossCountryEffects(
             deal.fromTeamId === sanction.toTeamId ? deal.toTeamId : deal.fromTeamId;
           if (affectedId !== sanction.fromTeamId) {
             const affectedState = getState(affectedId);
-            getDelta(affectedId).tradeIncome -= affectedState.tradeIncome * 0.15;
+            const affectedDelta = getDelta(affectedId);
+            if (affectedState && affectedDelta)
+              affectedDelta.tradeIncome -= affectedState.tradeIncome * 0.15;
           }
         });
     });
