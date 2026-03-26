@@ -1,21 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
-import { signToken } from "@/lib/auth";
+import { signToken, verifyPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(req: NextRequest) {
   try {
-    const { role, teamName } = await req.json();
+    const { role, username, password, teamName } = await req.json();
 
     if (role === "admin") {
+      if (!username || !password) {
+        return NextResponse.json({ error: "Username and password required" }, { status: 400 });
+      }
+
+      const adminUser = await prisma.user.findFirst({
+        where: { username, role: "admin" },
+      });
+
+      if (!adminUser || !(await verifyPassword(password, adminUser.password))) {
+        return NextResponse.json({ error: "Invalid credentials" }, { status: 401 });
+      }
+
       const token = signToken({
-        userId: "admin-1",
-        username: "admin",
+        userId: adminUser.id,
+        username: adminUser.username,
         role: "admin",
         teamId: null,
       });
 
       const response = NextResponse.json({
-        user: { id: "admin-1", username: "admin", role: "admin", teamId: null },
+        user: { id: adminUser.id, username: adminUser.username, role: "admin", teamId: null },
       });
 
       response.cookies.set("token", token, {
@@ -29,15 +41,27 @@ export async function POST(req: NextRequest) {
       return response;
     }
 
-    // Look up the real team from the database by name
+    // Team login — look up team by name, then verify the team user's password
+    if (!teamName || !password) {
+      return NextResponse.json({ error: "Team and password required" }, { status: 400 });
+    }
+
     const team = await prisma.team.findFirst({ where: { name: teamName } });
     if (!team) {
       return NextResponse.json({ error: "Invalid team" }, { status: 400 });
     }
 
+    const teamUser = await prisma.user.findFirst({
+      where: { teamId: team.id, role: "team" },
+    });
+
+    if (!teamUser || !(await verifyPassword(password, teamUser.password))) {
+      return NextResponse.json({ error: "Invalid team code" }, { status: 401 });
+    }
+
     const token = signToken({
-      userId: `${team.id}-user`,
-      username: `${team.name.toLowerCase().replace(/\s+/g, "")}1`,
+      userId: teamUser.id,
+      username: teamUser.username,
       role: "team",
       teamId: team.id,
       teamName: team.name,
@@ -45,8 +69,8 @@ export async function POST(req: NextRequest) {
 
     const response = NextResponse.json({
       user: {
-        id: `${team.id}-user`,
-        username: `${team.name.toLowerCase().replace(/\s+/g, "")}1`,
+        id: teamUser.id,
+        username: teamUser.username,
         role: "team",
         teamId: team.id,
         teamName: team.name,

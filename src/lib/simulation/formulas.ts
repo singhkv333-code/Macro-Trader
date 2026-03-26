@@ -29,12 +29,14 @@ export interface CountryMultipliers {
   rNeutral?: number;            // per-country neutral rate (optional, defaults to potentialGrowth + 2.0)
 }
 
-// ─── Population lookup (millions) for labor factor in production function ────
+// ─── Population lookup (normalized 85–115) for labor factor in production function ──
+// Compressed from real-world range (9M–1420M, ratio 158×) to game-friendly range
+// (85–115, ratio 1.35×) so no country has an insurmountable structural advantage.
 const POPULATION_M: Record<string, number> = {
-  "India": 1420, "United States": 335, "China": 1410, "Germany": 84,
-  "Japan": 124, "Brazil": 215, "United Kingdom": 67, "Russia": 144,
-  "South Korea": 52, "Saudi Arabia": 35, "Nigeria": 220, "Australia": 26,
-  "Turkey": 85, "Switzerland": 9, "Mexico": 130,
+  "India": 115, "United States": 105, "China": 115, "Germany": 95,
+  "Japan": 100, "Brazil": 108, "United Kingdom": 92, "Russia": 100,
+  "South Korea": 90, "Saudi Arabia": 88, "Nigeria": 110, "Australia": 85,
+  "Turkey": 95, "Switzerland": 85, "Mexico": 100,
 };
 
 // ─── GDP Engine (Production Function) ───────────────────────────────────────

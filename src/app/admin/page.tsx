@@ -111,16 +111,21 @@ export default function AdminDashboard() {
                     </p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Unemp.</span>
-                    <p className={`font-mono font-bold ${(state?.unemployment ?? 6) <= 6 ? "text-green-400" : "text-amber-400"}`}>
-                      {state?.unemployment?.toFixed(1) ?? "—"}%
+                    <span className="text-gray-500">Deficit</span>
+                    <p className={`font-mono font-bold ${(state?.fiscalDeficit ?? 0) <= 3 ? "text-green-400" : (state?.fiscalDeficit ?? 0) <= 6 ? "text-amber-400" : "text-red-400"}`}>
+                      {state?.fiscalDeficit?.toFixed(1) ?? "—"}%
                     </p>
                   </div>
                   <div>
-                    <span className="text-gray-500">Trust</span>
-                    <p className="font-mono font-bold text-blue-400">
-                      {state?.trustScore?.toFixed(0) ?? "—"}
-                    </p>
+                    <span className="text-gray-500">Trade</span>
+                    {(() => {
+                      const tb = (state as unknown as Record<string, number>)?.tradeBalance;
+                      return (
+                        <p className={`font-mono font-bold ${(tb ?? 0) >= 0 ? "text-green-400" : "text-amber-400"}`}>
+                          {tb !== undefined ? (tb >= 0 ? "+" : "") + tb.toFixed(0) : "—"}
+                        </p>
+                      );
+                    })()}
                   </div>
                 </div>
               )}

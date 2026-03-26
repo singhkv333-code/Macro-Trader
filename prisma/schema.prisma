@@ -27,6 +27,8 @@ model Team {
   tradeOrders    TradeOrder[]
   powerUpUsages  PowerUpUsage[]
   countryProfile CountryProfile?
+  proposedDeals  TradeAgreement[] @relation("proposedDeals")
+  receivedDeals  TradeAgreement[] @relation("receivedDeals")
   createdAt      DateTime        @default(now())
 }
 
@@ -77,17 +79,34 @@ model CountryProfile {
   powerUpName        String @default("Economic Stimulus")
   powerUpDescription String @default("Boost GDP growth by 1.5% for one round.")
   powerUpUsed        Boolean @default(false)
+  challengeText      String  @default("")
 }
 
 model Game {
-  id                   String   @id @default(cuid())
-  currentRound         Int      @default(0)
-  phase                String   @default("waiting")
+  id                   String           @id @default(cuid())
+  currentRound         Int              @default(0)
+  phase                String           @default("waiting")
   globalEvent          String?
-  oilPriceIndex        Float    @default(100)
-  isLeaderboardVisible Boolean  @default(true)
-  createdAt            DateTime @default(now())
-  updatedAt            DateTime @updatedAt
+  oilPriceIndex        Float            @default(100)
+  isLeaderboardVisible Boolean          @default(true)
+  tradeAgreements      TradeAgreement[]
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+}
+
+model TradeAgreement {
+  id            String   @id @default(cuid())
+  gameId        String
+  roundProposed Int
+  proposerId    String
+  receiverId    String
+  status        String   @default("pending") // "pending" | "accepted" | "rejected"
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  proposer      Team     @relation("proposedDeals", fields: [proposerId], references: [id])
+  receiver      Team     @relation("receivedDeals", fields: [receiverId], references: [id])
+  game          Game     @relation(fields: [gameId], references: [id])
 }
 
 model Decision {

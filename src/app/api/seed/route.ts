@@ -319,6 +319,117 @@ const COUNTRIES = [
       powerUpDescription: "Trade partners get 1.5× GDP benefit from deals. Mexico permanently gains +5% taxEfficiency.",
     },
   },
+  // ── 5 new countries (from Claude.md) ────────────────────────────────────
+  {
+    team: { name: "France", flagEmoji: "🇫🇷", color: "#002395" },
+    profile: {
+      countryName: "French Republic",
+      productivityFactor: 1.05, tradeMultiplier: 1.08, monetaryPower: 1.05,
+      taxEfficiency: 0.90, potentialGrowth: 2.0, creditSpread: 0.02,
+      startingDebtToGdp: 0.72, rNeutral: 4.0,
+      startingRevenue: 185.4, startingDebtService: 74.2, startingNetBudget: 111.2,
+      startingGdpBillions: 1030, startingGdpGrowth: 2.0,
+      startingInflation: 3.0, startingForex: 250, startingMilitary: 65,
+      startingCreditRating: "AA",
+      oilProduction: 1, oilConsumption: 5,
+      metalsProduction: 3, metalsConsumption: 5,
+      foodProduction: 7, foodConsumption: 5,
+      semisProduction: 5, semisConsumption: 6,
+      pharmaProduction: 7, pharmaConsumption: 4,
+      textilesProduction: 5, textilesConsumption: 5,
+      powerUpName: "EU Integration",
+      powerUpDescription: "All trade deals with European nations (Germany, UK, Switzerland) give 2× β benefit for one round.",
+      challengeText: "High debt (72%) with moderate growth potential. Strong pharma and food exports but heavy oil importer. Must leverage European trade partnerships.",
+    },
+  },
+  {
+    team: { name: "Indonesia", flagEmoji: "🇮🇩", color: "#CE1126" },
+    profile: {
+      countryName: "Republic of Indonesia",
+      productivityFactor: 0.88, tradeMultiplier: 1.08, monetaryPower: 0.90,
+      taxEfficiency: 0.78, potentialGrowth: 4.0, creditSpread: 0.025,
+      startingDebtToGdp: 0.40, rNeutral: 6.0,
+      startingRevenue: 150.5, startingDebtService: 37.4, startingNetBudget: 113.1,
+      startingGdpBillions: 960, startingGdpGrowth: 4.0,
+      startingInflation: 4.5, startingForex: 170, startingMilitary: 55,
+      startingCreditRating: "BBB",
+      oilProduction: 5, oilConsumption: 6,
+      metalsProduction: 7, metalsConsumption: 4,
+      foodProduction: 6, foodConsumption: 7,
+      semisProduction: 2, semisConsumption: 4,
+      pharmaProduction: 2, pharmaConsumption: 4,
+      textilesProduction: 7, textilesConsumption: 5,
+      powerUpName: "Archipelago Trade Hub",
+      powerUpDescription: "Maritime trade routes boost all trade income by 40% for one round.",
+      challengeText: "Low debt gives fiscal room but low tax efficiency limits revenue. Rich in metals and textiles but needs tech imports. High growth potential if infra spend is maximized.",
+    },
+  },
+  {
+    team: { name: "Canada", flagEmoji: "🇨🇦", color: "#FF0000" },
+    profile: {
+      countryName: "Canada",
+      productivityFactor: 1.08, tradeMultiplier: 1.10, monetaryPower: 1.05,
+      taxEfficiency: 0.90, potentialGrowth: 2.5, creditSpread: 0.02,
+      startingDebtToGdp: 0.50, rNeutral: 4.5,
+      startingRevenue: 183.6, startingDebtService: 41.0, startingNetBudget: 142.6,
+      startingGdpBillions: 1020, startingGdpGrowth: 2.5,
+      startingInflation: 3.2, startingForex: 230, startingMilitary: 50,
+      startingCreditRating: "AAA",
+      oilProduction: 8, oilConsumption: 4,
+      metalsProduction: 7, metalsConsumption: 4,
+      foodProduction: 7, foodConsumption: 3,
+      semisProduction: 3, semisConsumption: 5,
+      pharmaProduction: 4, pharmaConsumption: 3,
+      textilesProduction: 2, textilesConsumption: 4,
+      powerUpName: "Arctic Resources",
+      powerUpDescription: "Discover new oil and metals reserves. Oil production +2, metals +2 permanently.",
+      challengeText: "Resource-rich with clean balance sheet but small labour force and needs tech imports. Natural trade partner for oil-hungry nations like India and Germany.",
+    },
+  },
+  {
+    team: { name: "South Africa", flagEmoji: "🇿🇦", color: "#007749" },
+    profile: {
+      countryName: "Republic of South Africa",
+      productivityFactor: 0.88, tradeMultiplier: 1.00, monetaryPower: 0.90,
+      taxEfficiency: 0.80, potentialGrowth: 3.0, creditSpread: 0.03,
+      startingDebtToGdp: 0.55, rNeutral: 5.0,
+      startingRevenue: 150.8, startingDebtService: 46.8, startingNetBudget: 104.0,
+      startingGdpBillions: 940, startingGdpGrowth: 3.0,
+      startingInflation: 5.5, startingForex: 160, startingMilitary: 45,
+      startingCreditRating: "BB",
+      oilProduction: 2, oilConsumption: 5,
+      metalsProduction: 9, metalsConsumption: 4,
+      foodProduction: 5, foodConsumption: 6,
+      semisProduction: 1, semisConsumption: 3,
+      pharmaProduction: 3, pharmaConsumption: 4,
+      textilesProduction: 4, textilesConsumption: 5,
+      powerUpName: "Mineral Wealth Surge",
+      powerUpDescription: "Metals export prices increase 50% for one round due to rare earth discovery.",
+      challengeText: "Metals superpower but deficit in almost everything else. Must convert mineral wealth into diversified imports. Moderate inflation needs attention.",
+    },
+  },
+  {
+    team: { name: "UAE", flagEmoji: "🇦🇪", color: "#00732F" },
+    profile: {
+      countryName: "United Arab Emirates",
+      productivityFactor: 0.95, tradeMultiplier: 1.12, monetaryPower: 0.92,
+      taxEfficiency: 0.85, potentialGrowth: 3.5, creditSpread: 0.015,
+      startingDebtToGdp: 0.30, rNeutral: 5.5,
+      startingRevenue: 166.6, startingDebtService: 24.5, startingNetBudget: 142.1,
+      startingGdpBillions: 980, startingGdpGrowth: 3.5,
+      startingInflation: 2.5, startingForex: 300, startingMilitary: 70,
+      startingCreditRating: "AA",
+      oilProduction: 9, oilConsumption: 3,
+      metalsProduction: 2, metalsConsumption: 4,
+      foodProduction: 1, foodConsumption: 4,
+      semisProduction: 2, semisConsumption: 4,
+      pharmaProduction: 1, pharmaConsumption: 3,
+      textilesProduction: 3, textilesConsumption: 4,
+      powerUpName: "Sovereign Wealth Fund",
+      powerUpDescription: "Inject $200B from sovereign wealth into budget for one round. No borrowing cost.",
+      challengeText: "Oil-rich with low debt and stable inflation — strongest starting fiscal position. But deficit in 5 of 6 commodities means total dependence on trade. If partners sanction you, economy collapses.",
+    },
+  },
 ];
 
 export async function POST() {
@@ -342,8 +453,34 @@ export async function POST() {
       data: { username: "admin", password: adminPassword, role: "admin" },
     });
 
+    // Login codes from Claude.md — handed out on printed cards at the event
+    const LOGIN_CODES: Record<string, string> = {
+      "India":          "KR4N8WXJ",
+      "United States":  "BP7M3YTH",
+      "China":          "QV6D9FLS",
+      "Germany":        "HN2X5CWR",
+      "Japan":          "WT8K4PBG",
+      "Brazil":         "FJ3V7NMD",
+      "United Kingdom": "XC9L2HTQ",
+      "Russia":         "DM5R8YKW",
+      "South Korea":    "PG4T6JNV",
+      "Saudi Arabia":   "LH7W3BXF",
+      "Nigeria":        "YK8D5QMC",
+      "Australia":      "NR2P9THJ",
+      "Turkey":         "BW6X4FLG",
+      "Switzerland":    "TJ3M7VKD",
+      "Mexico":         "GF5N8CWP",
+      "France":         "VX4H2RBN",
+      "Indonesia":      "CW7L9TJK",
+      "Canada":         "MQ3Y6DHP",
+      "South Africa":   "RB8F4NXW",
+      "UAE":            "HT5K7GJV",
+    };
+
     // Create teams with country profiles and country-specific initial states
     for (const { team: teamDef, profile } of COUNTRIES) {
+      const loginCode = LOGIN_CODES[teamDef.name] ?? teamDef.name.toUpperCase().slice(0, 3) + "2026";
+
       const team = await prisma.team.create({
         data: { name: teamDef.name, color: teamDef.color, flagEmoji: teamDef.flagEmoji },
       });
@@ -353,12 +490,10 @@ export async function POST() {
         data: { teamId: team.id, ...profile },
       });
 
-      // Create team login
-      const slug = teamDef.name.toLowerCase().replace(/\s+/g, "");
-      const username = slug + "1";
-      const password = await hashPassword(slug + "123");
+      // Create team login using the unique code as both username and password
+      const hashedCode = await hashPassword(loginCode);
       await prisma.user.create({
-        data: { username, password, role: "team", teamId: team.id },
+        data: { username: loginCode, password: hashedCode, role: "team", teamId: team.id },
       });
 
       // Round-0 initial state using country-specific starting conditions
@@ -403,8 +538,7 @@ export async function POST() {
     // Return credentials for the admin to distribute
     const credentials = COUNTRIES.map(({ team }) => ({
       team: team.name,
-      username: team.name.toLowerCase().replace(/\s+/g, "") + "1",
-      password: team.name.toLowerCase().replace(/\s+/g, "") + "123",
+      code: LOGIN_CODES[team.name] ?? team.name.toUpperCase().slice(0, 3) + "2026",
     }));
 
     return NextResponse.json({

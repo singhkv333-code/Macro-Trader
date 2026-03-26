@@ -355,30 +355,6 @@ export default function DecidePage() {
   const fxStability = Math.max(0, 1 - Math.abs(currencyIndex - 100) / 20);
   const diplomacyScore = (currentState as any)?.diplomacyScore ?? 0;
 
-  const STEP_TIPS: Record<number, string> = {
-    0: interestRate < profRN - 1
-      ? `Your rate (${interestRate}%) is below your neutral rate (${profRN}%) — stimulative. Watch inflation.`
-      : interestRate > profRN + 1
-      ? `Your rate (${interestRate}%) is above your neutral rate (${profRN}%) — restrictive. Slows growth but cools inflation.`
-      : `Your rate is near your neutral rate (${profRN}%). Balanced — no big tradeoffs.`,
-    1: infraSpending < 25
-      ? "Infrastructure below 25%: low growth contribution. Try 35–50% for best GDP."
-      : infraSpending > 55
-      ? "Very high infra: growth boost, but leaves little for subsidies and defense."
-      : `Budget split looks reasonable. Infra at ${infraSpending}% gives a solid GDP boost.`,
-    2: "Export your surpluses (green rows). Import your deficits (red rows) to avoid GDP drag.",
-    3: diplomaticAction === "trade_deal"
-      ? "Trade Deals add +0.5% GDP for both nations every round they're active."
-      : diplomaticAction === "sanctions"
-      ? "Sanctions hurt the target but also cost you –0.3% GDP and lower your diplomacy score."
-      : diplomaticAction === "conflict"
-      ? "Military conflicts are high-risk. Win = +1% GDP. Lose = –2.5% GDP + approval crash."
-      : "Trade Deals are the safest diplomatic action — both sides benefit with no downside.",
-    4: newDebt > 60
-      ? `⚠️ Your debt/GDP will be ${newDebt.toFixed(0)}% — above 60% threshold. Reduce borrowing.`
-      : "Looks good. Check the impact preview and submit when ready.",
-  };
-
   // ── Steps definition ─────────────────────────────────────────────────────
 
   const stepCompletedMap = [
@@ -558,14 +534,14 @@ export default function DecidePage() {
                 <Slider
                   value={[interestRate]}
                   onValueChange={v => setInterestRate(Array.isArray(v) ? v[0] : v)}
-                  min={2} max={10} step={0.5}
+                  min={1} max={15} step={0.1}
                   className="w-full"
                 />
               </div>
 
               <div className="flex justify-between text-xs text-[#6B6560]">
-                <span>2% — Stimulative</span>
-                <span>10% — Restrictive</span>
+                <span>1% — Stimulative</span>
+                <span>15% — Restrictive</span>
               </div>
 
               <p className="text-xs text-[#6B6560]">
@@ -996,7 +972,11 @@ export default function DecidePage() {
                   <Label className="text-sm text-[#6B6560]">Target Nation</Label>
                   <Select value={diplomaticTarget} onValueChange={v => { if (v) setDiplomaticTarget(v); }}>
                     <SelectTrigger className="rounded-xl border-[#E5E0DA]">
-                      <SelectValue placeholder="Select target nation" />
+                      <SelectValue placeholder="Select target nation">
+                        {diplomaticTarget
+                          ? (() => { const t = otherTeams.find(x => x.id === diplomaticTarget); return t ? `${t.flagEmoji} ${t.name}` : "Select target nation"; })()
+                          : undefined}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {otherTeams.map(t => (
@@ -1347,13 +1327,7 @@ export default function DecidePage() {
             </div>
           </div>
 
-          {/* Section 4: Step-specific tip */}
-          <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-            <p className="text-[10px] font-semibold text-amber-700 uppercase tracking-widest mb-1">💡 Tip</p>
-            <p className="text-xs text-amber-800 leading-relaxed">{STEP_TIPS[currentStep] ?? "Make your decisions and submit."}</p>
-          </div>
-
-          {/* Section 5: Decision quick-reference */}
+          {/* Section 4: Decision quick-reference */}
           <div className="bg-[#1B2A4A] rounded-xl p-4">
             <p className="text-[10px] font-semibold text-white/60 uppercase tracking-widest mb-3">Quick Reference</p>
             <div className="space-y-2 text-xs text-white/80">

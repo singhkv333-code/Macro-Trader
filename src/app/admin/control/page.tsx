@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useGameState } from "@/hooks/useGameState";
 import { Button } from "@/components/ui/button";
@@ -22,6 +22,58 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
+
+function SimulationProgress() {
+  const [progress, setProgress] = useState(0);
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+
+  useEffect(() => {
+    // Animate progress bar to ~95% while waiting
+    const tick = setInterval(() => {
+      setProgress(p => Math.min(95, p + Math.random() * 12));
+    }, 600);
+
+    // Poll for results every 2s
+    const poll = setInterval(async () => {
+      try {
+        const res = await fetch("/api/game/state");
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.game?.phase === "results") {
+          setProgress(100);
+          clearInterval(tick);
+          clearInterval(poll);
+        }
+      } catch { /* ignore */ }
+    }, 2000);
+
+    return () => { clearInterval(tick); clearInterval(poll); };
+  }, []);
+
+  return (
+    <div className="w-full bg-amber-600/20 border border-amber-500/30 rounded-xl p-4 space-y-3">
+      <div className="flex items-center gap-3 text-amber-300">
+        <StopCircle className="h-5 w-5 animate-pulse shrink-0" />
+        <span className="text-sm font-medium">
+          {progress < 100 ? "Computing economic outcomes…" : "Results ready!"}
+        </span>
+        <span className="ml-auto font-mono text-xs">{Math.round(progress)}%</span>
+      </div>
+      <div className="h-2 bg-amber-900/40 rounded-full overflow-hidden">
+        <div
+          className="h-full bg-amber-400 rounded-full transition-all duration-500"
+          style={{ width: `${progress}%` }}
+        />
+      </div>
+      {progress < 100 && (
+        <p className="text-xs text-amber-400/70">
+          This takes 10–30 seconds. The page will update automatically.
+        </p>
+      )}
+    </div>
+  );
+}
 
 interface SubmissionStatus {
   teamId: string;
@@ -279,11 +331,18 @@ export default function AdminControlPage() {
               </Button>
             )}
 
-            {/* Step 3: During simulating — show waiting */}
+            {/* Step 3: During simulating — show progress + force-reset */}
             {phase === "simulating" && (
-              <div className="w-full h-16 bg-amber-600/20 border border-amber-500/30 rounded-xl flex items-center justify-center gap-3 text-amber-300">
-                <StopCircle className="h-6 w-6 animate-pulse" />
-                Simulation in progress...
+              <div className="space-y-3">
+                <SimulationProgress />
+                <Button
+                  onClick={() => advancePhase("results")}
+                  disabled={!!actionLoading}
+                  variant="outline"
+                  className="w-full border-amber-500/30 text-amber-400 hover:bg-amber-500/10 rounded-xl text-sm"
+                >
+                  Stuck? Force to Results
+                </Button>
               </div>
             )}
 

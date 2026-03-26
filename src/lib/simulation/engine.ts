@@ -494,8 +494,27 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
       news.push({ headline: `Credit agencies warn: ${name}'s deficit hits ${state.fiscalDeficit.toFixed(1)}% of GDP`, type: "economic" });
   }
 
-  // ── 15. Persist — deleteMany + createMany = 2 queries instead of 15 upserts ──
-  // deleteMany first so re-running simulation overwrites previous results cleanly.
+  // ── 15. Validate all outputs before writing ─────────────────────────────────
+  for (const state of newStates) {
+    if (isNaN(state.gdp) || state.gdp <= 0) {
+      throw new Error(`Invalid GDP for team ${state.teamId}: ${state.gdp}`);
+    }
+    if (isNaN(state.inflation)) {
+      throw new Error(`Invalid inflation for team ${state.teamId}: ${state.inflation}`);
+    }
+    if (isNaN(state.gdpGrowth)) {
+      throw new Error(`Invalid gdpGrowth for team ${state.teamId}: ${state.gdpGrowth}`);
+    }
+    // Final clamp pass to ensure no out-of-range values reach the DB
+    state.gdp           = Math.max(100, state.gdp);
+    state.gdpGrowth     = Math.max(-10, Math.min(20, state.gdpGrowth));
+    state.inflation     = Math.max(-1, Math.min(25, state.inflation));
+    state.currencyIndex = Math.max(10, Math.min(500, state.currencyIndex));
+  }
+
+  // ── 16. Persist — deleteMany + createMany = 2 queries, Promise.all for news ─
+  // NOTE: prisma.$transaction([...]) silently fails with PgBouncer in transaction
+  // mode (Supabase). Use Promise.all of independent writes instead.
   await prisma.roundState.deleteMany({ where: { round } });
   await Promise.all([
     prisma.roundState.createMany({ data: newStates.map((s) => ({ ...s, round })) }),

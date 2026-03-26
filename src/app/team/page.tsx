@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useRouter } from "next/navigation";
 import { ROUND_SCENARIOS } from "@/lib/constants";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import {
   TrendingUp,
   TrendingDown,
@@ -24,6 +24,7 @@ import { EconomyRadarChart } from "@/components/game/EconomyRadarChart";
 import { LeaderboardBars } from "@/components/game/LeaderboardBars";
 import { NewsTicker } from "@/components/game/NewsTicker";
 import { RoundIntroOverlay } from "@/components/game/RoundIntroOverlay";
+import { CountryBriefing } from "@/components/game/CountryBriefing";
 
 function getMetricStatus(key: string, value: number): "healthy" | "warning" | "critical" {
   switch (key) {
@@ -77,12 +78,55 @@ function getEconomySummary(state: {
   return { grade, color, items };
 }
 
+interface TradeRequest {
+  id: string;
+  status: string;
+  proposer: { id: string; name: string; flagEmoji: string; color: string };
+  commodity?: string;
+  terms?: string;
+}
+
 export default function TeamDashboard() {
   const { user } = useAuth();
   const { game, teams, news, relations, scores, previousScores } = useGameState(3000);
   const router = useRouter();
 
   const [showRoundIntro, setShowRoundIntro] = useState(false);
+  const [showBriefing, setShowBriefing] = useState(false);
+
+  // ── Incoming trade requests ──────────────────────────────────────────────
+  const [tradeRequests, setTradeRequests] = useState<TradeRequest[]>([]);
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+
+  const fetchTradeRequests = useCallback(async () => {
+    try {
+      const res = await fetch("/api/team/trade/requests");
+      if (res.ok) {
+        const data = await res.json();
+        setTradeRequests(data.requests ?? []);
+      }
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => {
+    fetchTradeRequests();
+    const interval = setInterval(fetchTradeRequests, 3000);
+    return () => clearInterval(interval);
+  }, [fetchTradeRequests]);
+
+  const respondToTrade = async (agreementId: string, response: "accepted" | "rejected") => {
+    try {
+      await fetch("/api/team/trade/respond", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ agreementId, response }),
+      });
+      setDismissedIds(prev => new Set([...prev, agreementId]));
+      fetchTradeRequests();
+    } catch { /* ignore */ }
+  };
+
+  const visibleRequests = tradeRequests.filter(r => !dismissedIds.has(r.id));
 
   const myTeam = teams.find((t) => t.id === user?.teamId);
   const currentState = myTeam?.roundStates?.[0];
@@ -107,6 +151,13 @@ export default function TeamDashboard() {
       }
     }
   }, [game?.phase, currentRound]);
+
+  // Show country briefing once per login session
+  useEffect(() => {
+    if (user?.teamId && !sessionStorage.getItem("briefingSeen")) {
+      setShowBriefing(true);
+    }
+  }, [user?.teamId]);
 
   const getDelta = (key: string) => {
     if (!currentState || !prevState) return undefined;
@@ -171,6 +222,20 @@ export default function TeamDashboard() {
 
   return (
     <div className="space-y-5 animate-fade-in pb-32 lg:pb-8">
+      {/* ── Country Briefing (first login) ── */}
+      {showBriefing && profile && (
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        <CountryBriefing
+          flagEmoji={myTeam?.flagEmoji ?? "🌐"}
+          teamName={myTeam?.name ?? ""}
+          countryProfile={profile as any}
+          onEnter={() => {
+            sessionStorage.setItem("briefingSeen", "1");
+            setShowBriefing(false);
+          }}
+        />
+      )}
+
       {/* ── Round Intro Overlay ── */}
       {showRoundIntro && scenario && (
         <RoundIntroOverlay
@@ -180,6 +245,51 @@ export default function TeamDashboard() {
           flagEmoji={myTeam?.flagEmoji ?? "🌐"}
           onDismiss={() => setShowRoundIntro(false)}
         />
+      )}
+
+      {/* ── Incoming Trade Deal Notifications ── */}
+      {visibleRequests.length > 0 && (
+        <div className="space-y-2">
+          {visibleRequests.map(req => (
+            <div
+              key={req.id}
+              className="flex flex-wrap items-center gap-3 bg-[#EAF6F0] border border-[#2D8A5E]/30 rounded-xl px-4 py-3"
+            >
+              <span className="text-lg">{req.proposer.flagEmoji}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-[#1B2A4A]">
+                  📨 {req.proposer.name} wants to form a trade deal with you!
+                </p>
+                <p className="text-xs text-[#6B6560]">Respond before the round ends</p>
+              </div>
+              <div className="flex gap-2 shrink-0">
+                <Button
+                  size="sm"
+                  className="bg-[#2D8A5E] hover:bg-[#236b49] text-white rounded-lg h-8 px-3 text-xs"
+                  onClick={() => respondToTrade(req.id, "accepted")}
+                >
+                  Accept
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="border-[#C4443A]/40 text-[#C4443A] hover:bg-[#C4443A]/10 rounded-lg h-8 px-3 text-xs"
+                  onClick={() => respondToTrade(req.id, "rejected")}
+                >
+                  Decline
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-[#6B6560] hover:bg-[#F5F2EE] rounded-lg h-8 px-2 text-xs"
+                  onClick={() => setDismissedIds(prev => new Set([...prev, req.id]))}
+                >
+                  Dismiss
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       {/* ── Header ── */}
