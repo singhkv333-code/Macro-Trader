@@ -21,7 +21,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "IMPERIUM: The Fiscal Forum",
+  title: "Capital Catalyst",
   description: "Real-time multiplayer economic simulation game | FIC · SRCC · Episteme 2026",
 };
 

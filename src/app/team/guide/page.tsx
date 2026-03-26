@@ -9,7 +9,7 @@ export default function GuidePage() {
           Player Guide
         </h1>
         <p className="text-[#6B6560] text-sm mt-1">
-          Everything you need to play IMPERIUM well. Read this before Round 1.
+          Everything you need to play Capital Catalyst well. Read this before Round 1.
         </p>
       </div>
 

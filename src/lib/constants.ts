@@ -135,7 +135,6 @@ export const ROUND_SCENARIOS: Record<number, {
     conflictsEnabled: true,
     effects: {
       effectMultiplier: 1.5,
-      leaderboardVisible: false,
       governanceCrisisThreshold: 30,
     },
   },

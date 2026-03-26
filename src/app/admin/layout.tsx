@@ -29,7 +29,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-6">
             <span className="text-lg font-bold tracking-wider font-[family-name:var(--font-dm-sans)]">
-              MACRO TRADER <span className="text-[#E8792F]">ADMIN</span>
+              Capital Catalyst <span className="text-[#E8792F]">ADMIN</span>
             </span>
             <nav className="flex items-center gap-4 text-sm">
               <Link href="/admin" className="text-gray-400 hover:text-white transition-colors">

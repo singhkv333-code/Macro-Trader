@@ -466,15 +466,8 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
     }
   }
 
-  // ── 13. Leaderboard visibility — fire-and-forget, don't block persist ───────
-  if (scenario?.effects.leaderboardVisible === false && game) {
-    void prisma.game.update({ where: { id: game.id }, data: { isLeaderboardVisible: false } });
-  } else if (game && round > 1) {
-    const prev = ROUND_SCENARIOS[round - 1];
-    if (prev?.effects.leaderboardVisible === false) {
-      void prisma.game.update({ where: { id: game.id }, data: { isLeaderboardVisible: true } });
-    }
-  }
+  // ── 13. Leaderboard visibility — always visible through all 4 rounds ────────
+  // Leaderboard is hidden only after the game ends (round > MAX_ROUNDS), not during play.
 
   // ── 14. Clamp, credit rating, news headlines ────────────────────────────────
   // prevPrevStatesEarly was fetched upfront in the initial Promise.all

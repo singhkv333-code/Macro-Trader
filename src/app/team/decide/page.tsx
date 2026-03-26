@@ -276,10 +276,8 @@ export default function DecidePage() {
   const budBorrowed   = (borrowing / 100) * gdp;
   const totalBudget   = budNetBudget + budBorrowed;
 
-  // Fiscal deficit from budget constraint (matching calculateFiscalDeficit)
-  const projTotalSpend = totalBudget;  // spending sliders sum to 100% of budget
-  const projDeficit = ((projTotalSpend + budDebtSvc - budRevenue - budBorrowed) / Math.max(gdp, 1)) * 100;
-  // ≈ -tradeIncome/gdp*100 (near zero when balanced; negative = surplus if trade income exists)
+  // Fiscal deficit: borrowing drives the deficit. If debt service exceeds revenue, that gap adds too.
+  const projDeficit = (budBorrowed + Math.max(0, budDebtSvc - budRevenue)) / Math.max(gdp, 1) * 100;
 
   // Review page deltas — kept as simple deltas vs neutral baseline for readability
   const irGdpImpact      = (profRN - interestRate) * 0.3;   // below neutral → positive
