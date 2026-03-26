@@ -54,12 +54,14 @@ interface DiploOption {
 }
 
 const DIPLO_OPTIONS: DiploOption[] = [
-  { value: "none",       label: "No Action",          icon: "—",  desc: "Stay neutral",                   color: "gray"  },
-  { value: "trade_deal", label: "Trade Deal",         icon: "🤝", desc: "+GDP for both nations",           color: "green" },
-  { value: "alliance",   label: "Alliance",           icon: "🛡", desc: "Military pact — mutual defense",  color: "blue"  },
-  { value: "sanctions",  label: "Sanctions",          icon: "⚔️", desc: "Target −1% GDP, you −0.3%",       color: "red",  requiresTrade: true },
-  { value: "trade_war",  label: "Trade War",          icon: "💥", desc: "Both −0.8% GDP",                 color: "red",  requiresTrade: true },
-  { value: "conflict",   label: "Military Conflict",  icon: "🎯", desc: "High risk/reward combat",         color: "red",  requiresConflict: true },
+  { value: "none",            label: "No Action",          icon: "—",  desc: "Stay neutral",                              color: "gray"  },
+  { value: "trade_deal",      label: "Trade Deal",         icon: "🤝", desc: "+GDP for both nations",                     color: "green" },
+  { value: "alliance",        label: "Alliance",           icon: "🛡", desc: "Military pact — mutual defense",             color: "blue"  },
+  { value: "break_alliance",  label: "Break Alliance",     icon: "💔", desc: "End an alliance (−6 diplomacy pts)",         color: "red"   },
+  { value: "cancel_deal",     label: "Cancel Trade Deal",  icon: "🚫", desc: "End a trade deal (−4 diplomacy pts)",        color: "red"   },
+  { value: "sanctions",       label: "Sanctions",          icon: "⚔️", desc: "Target −1% GDP, you −0.3%",                  color: "red",  requiresTrade: true },
+  { value: "trade_war",       label: "Trade War",          icon: "💥", desc: "Both −0.8% GDP",                            color: "red",  requiresTrade: true },
+  { value: "conflict",        label: "Military Conflict",  icon: "🎯", desc: "High risk/reward combat",                   color: "red",  requiresConflict: true },
 ];
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -1157,9 +1159,12 @@ export default function DecidePage() {
               {/* Divider */}
               <div className="border-t border-[#E5E0DA] my-4" />
 
-              {/* Estimated Impact — uses same formulas as the engine */}
+              {/* Estimated Impact — client-side projection, not the final simulated result */}
               <div className="bg-[#F5F2EE] rounded-xl p-4 space-y-2">
-                <p className="text-xs font-semibold text-[#6B6560] uppercase tracking-wider mb-3">Estimated Impact This Round</p>
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-[#6B6560] uppercase tracking-wider">Projected Outcome (Estimate)</p>
+                  <p className="text-[10px] text-[#9E9890] mt-0.5">Based on your inputs only — actual results include trade, events & diplomacy</p>
+                </div>
                 {[
                   { label: "GDP Growth",       val: projGDP,       positiveGood: true  },
                   { label: "Inflation",         val: projInflation, positiveGood: false },

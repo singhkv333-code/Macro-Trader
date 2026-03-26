@@ -16,6 +16,7 @@ interface TeamData {
   name: string;
   color: string;
   flagEmoji: string;
+  isActive: boolean;
   roundStates: RoundState[];
   decisions: DecisionData[];
 }

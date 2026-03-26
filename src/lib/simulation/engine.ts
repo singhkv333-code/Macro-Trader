@@ -80,6 +80,29 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
   for (const dec of decisions) {
     const isAggressive = ["sanctions", "trade_war", "conflict"].includes(dec.diplomaticAction);
     const isDiplomatic = ["trade_deal", "alliance"].includes(dec.diplomaticAction);
+    const isBreaking   = ["break_alliance", "cancel_deal"].includes(dec.diplomaticAction);
+
+    if (isBreaking && dec.diplomaticTarget) {
+      // Deactivate the matching relation
+      const relType = dec.diplomaticAction === "break_alliance" ? "alliance" : "trade_deal";
+      await prisma.diplomaticRelation.updateMany({
+        where: {
+          OR: [
+            { fromTeamId: dec.teamId, toTeamId: dec.diplomaticTarget, type: relType },
+            { fromTeamId: dec.diplomaticTarget, toTeamId: dec.teamId, type: relType },
+          ],
+          active: true,
+        },
+        data: { active: false },
+      });
+      const from = teamNames[dec.teamId] || "Unknown";
+      const to   = teamNames[dec.diplomaticTarget] || "Unknown";
+      if (dec.diplomaticAction === "break_alliance")
+        news.push({ headline: `${from} dissolves military alliance with ${to} — diplomatic fallout expected`, type: "conflict" });
+      else
+        news.push({ headline: `${from} cancels trade agreement with ${to}`, type: "trade" });
+    }
+
     if ((isAggressive || isDiplomatic) && dec.diplomaticTarget) {
       const key = `${dec.teamId}:${dec.diplomaticTarget}:${dec.diplomaticAction}`;
       if (!existingRelSet.has(key)) {
@@ -510,6 +533,44 @@ export async function runSimulation(round: number): Promise<NewsItem[]> {
     state.gdpGrowth     = Math.max(-10, Math.min(20, state.gdpGrowth));
     state.inflation     = Math.max(-1, Math.min(25, state.inflation));
     state.currencyIndex = Math.max(10, Math.min(500, state.currencyIndex));
+  }
+
+  // ── 15b. Compute per-metric scores (stored in DB, read by dashboard + leaderboard) ─
+  for (const state of newStates) {
+    // GDP Score: max 30 pts
+    const gdpScore =
+      state.gdpGrowth >= 5  ? 30 :
+      state.gdpGrowth >= 3  ? 25 :
+      state.gdpGrowth >= 1  ? 18 :
+      state.gdpGrowth >= 0  ? 10 :
+      state.gdpGrowth >= -2 ? 3  : 0;
+
+    // Inflation Score: max 30 pts (target 2–4%)
+    const inf = state.inflation;
+    const inflationScore =
+      inf >= 2 && inf <= 4   ? 30 :
+      inf >= 1 && inf <= 6   ? 22 :
+      inf >= 0 && inf <= 8   ? 14 :
+      inf >= 0 && inf <= 12  ? 6  : 0;
+
+    // Fiscal Score: max 20 pts
+    const fiscalScore =
+      state.fiscalDeficit <= 2 ? 20 :
+      state.fiscalDeficit <= 4 ? 15 :
+      state.fiscalDeficit <= 6 ? 8  :
+      state.fiscalDeficit <= 9 ? 3  : 0;
+
+    // Forex Score: max 20 pts
+    const forexScore =
+      state.currencyIndex >= 105 ? 20 :
+      state.currencyIndex >= 98  ? 16 :
+      state.currencyIndex >= 90  ? 11 :
+      state.currencyIndex >= 80  ? 6  : 0;
+
+    (state as Record<string, unknown>).gdpScore       = gdpScore;
+    (state as Record<string, unknown>).inflationScore = inflationScore;
+    (state as Record<string, unknown>).fiscalScore    = fiscalScore;
+    (state as Record<string, unknown>).forexScore     = forexScore;
   }
 
   // ── 16. Persist — deleteMany + createMany = 2 queries, Promise.all for news ─

@@ -72,6 +72,36 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Validate: cannot sanction/trade_war an active ally or trade partner
+    if (["sanctions", "trade_war"].includes(diplomaticAction) && diplomaticTarget) {
+      const [activeDeal, activeAlliance] = await Promise.all([
+        prisma.diplomaticRelation.findFirst({
+          where: {
+            OR: [
+              { fromTeamId: session.teamId!, toTeamId: diplomaticTarget, type: "trade_deal" },
+              { fromTeamId: diplomaticTarget, toTeamId: session.teamId!, type: "trade_deal" },
+            ],
+            active: true,
+          },
+        }),
+        prisma.diplomaticRelation.findFirst({
+          where: {
+            OR: [
+              { fromTeamId: session.teamId!, toTeamId: diplomaticTarget, type: "alliance" },
+              { fromTeamId: diplomaticTarget, toTeamId: session.teamId!, type: "alliance" },
+            ],
+            active: true,
+          },
+        }),
+      ]);
+      if (activeDeal) {
+        return NextResponse.json({ error: "Cannot sanction a trade partner. Cancel the trade deal first." }, { status: 400 });
+      }
+      if (activeAlliance) {
+        return NextResponse.json({ error: "Cannot sanction an ally. Break the alliance first." }, { status: 400 });
+      }
+    }
+
     const decision = await prisma.decision.create({
       data: {
         teamId: session.teamId!,

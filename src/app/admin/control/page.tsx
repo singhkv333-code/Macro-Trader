@@ -21,6 +21,8 @@ import {
   Info,
   ChevronDown,
   ChevronUp,
+  UserX,
+  UserCheck,
 } from "lucide-react";
 
 function SimulationProgress() {
@@ -84,12 +86,35 @@ interface SubmissionStatus {
 }
 
 export default function AdminControlPage() {
-  const { game, refetch } = useGameState(2000);
+  const { game, teams: gameTeams, refetch } = useGameState(2000);
   const [actionLoading, setActionLoading] = useState("");
   const [submissions, setSubmissions] = useState<SubmissionStatus[]>([]);
   const [expandedEvent, setExpandedEvent] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<{ text: string; type: "success" | "error" } | null>(null);
   const router = useRouter();
+
+  const toggleTeam = async (teamId: string, activate: boolean) => {
+    setActionLoading(`team-${teamId}`);
+    try {
+      const endpoint = activate ? "/api/admin/restore-team" : "/api/admin/remove-team";
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId }),
+      });
+      if (res.ok) {
+        setStatusMessage({ text: activate ? "Team restored" : "Team deactivated", type: "success" });
+        await refetch();
+      } else {
+        const data = await res.json();
+        setStatusMessage({ text: data.error || "Failed", type: "error" });
+      }
+    } catch {
+      setStatusMessage({ text: "Network error", type: "error" });
+    } finally {
+      setActionLoading("");
+    }
+  };
 
   const fetchSubmissions = useCallback(async () => {
     try {
@@ -493,6 +518,48 @@ export default function AdminControlPage() {
                     </>
                   )}
                 </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Team Management */}
+      <Card className="bg-[#1A2A3A] border-0 rounded-xl">
+        <CardHeader>
+          <CardTitle className="text-lg">Team Management</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xs text-gray-500 mb-3">Deactivate removes a team from the game (soft delete — data preserved). Restore re-enables them.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+            {gameTeams.map((team) => (
+              <div
+                key={team.id}
+                className={`p-3 rounded-xl border transition-opacity ${
+                  team.isActive ? "border-white/10 bg-white/5" : "border-red-500/20 bg-red-500/5 opacity-50"
+                }`}
+              >
+                <div className="flex items-center gap-1.5 mb-2">
+                  <span>{team.flagEmoji}</span>
+                  <span className="text-xs font-medium truncate">{team.name}</span>
+                </div>
+                <Button
+                  size="sm"
+                  disabled={actionLoading === `team-${team.id}`}
+                  onClick={() => toggleTeam(team.id, !team.isActive)}
+                  className={`w-full h-7 text-[10px] rounded-lg flex items-center gap-1 ${
+                    team.isActive
+                      ? "bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30"
+                      : "bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30"
+                  }`}
+                  variant="ghost"
+                >
+                  {team.isActive ? (
+                    <><UserX className="h-3 w-3" /> Deactivate</>
+                  ) : (
+                    <><UserCheck className="h-3 w-3" /> Restore</>
+                  )}
+                </Button>
               </div>
             ))}
           </div>

@@ -21,6 +21,7 @@ model Team {
   name           String          @unique
   color          String
   flagEmoji      String
+  isActive       Boolean         @default(true)
   users          User[]
   decisions      Decision[]
   roundStates    RoundState[]
