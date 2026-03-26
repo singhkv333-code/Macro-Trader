@@ -29,10 +29,10 @@ export async function POST(req: NextRequest) {
             { status: 400 }
           );
         }
-        // Guard: max 5 rounds
-        if (game.currentRound >= 5) {
+        // Guard: max 4 rounds
+        if (game.currentRound >= 4) {
           return NextResponse.json(
-            { error: "Game is already at maximum rounds (5)" },
+            { error: "Game is already at maximum rounds (4)" },
             { status: 400 }
           );
         }

@@ -21,8 +21,8 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Macro Trader — The Policy Edition",
-  description: "Real-time multiplayer economic simulation game",
+  title: "IMPERIUM: The Fiscal Forum",
+  description: "Real-time multiplayer economic simulation game | FIC · SRCC · Episteme 2026",
 };
 
 export default function RootLayout({

@@ -80,11 +80,12 @@ export default function LoginPage() {
       <GrainBackground />
       <Card className="w-full max-w-lg shadow-lg border-0 rounded-xl relative z-10 animate-in fade-in slide-in-from-bottom-4 duration-500">
         <CardHeader className="text-center pb-2 pt-8">
+          <p className="text-[10px] tracking-widest text-gray-400 mb-1 font-semibold uppercase">FIC · SRCC · Episteme 2026</p>
           <h1 className="text-4xl font-bold text-[#1B2A4A] font-[family-name:var(--font-dm-sans)] tracking-tight">
-            MACRO TRADER
+            IMPERIUM
           </h1>
           <p className="text-gray-500 font-[family-name:var(--font-ibm-plex-sans)] mt-1">
-            The Policy Edition
+            The Fiscal Forum
           </p>
         </CardHeader>
         <CardContent className="pt-6 pb-8 px-8">

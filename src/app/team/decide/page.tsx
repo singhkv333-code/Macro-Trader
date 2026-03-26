@@ -28,6 +28,7 @@ import {
 } from "@/lib/constants";
 import { calculateGDPGrowth, calculateInflation } from "@/lib/simulation/formulas";
 import { ObjectiveCard } from "@/components/game/ObjectiveCard";
+import { GlobalCommodityBoard } from "@/components/game/GlobalCommodityBoard";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -431,11 +432,11 @@ export default function DecidePage() {
 
   return (
     <div
-      className="max-w-6xl mx-auto pb-10 animate-fade-in"
+      className="max-w-6xl mx-auto pb-12 animate-fade-in"
       style={{ background: "transparent" }}
     >
       {/* Page header */}
-      <div className="flex items-center gap-3 mb-5">
+      <div className="flex items-center gap-3 mb-6">
         <Button variant="ghost" size="sm" onClick={() => router.push("/team")} className="p-2">
           <ArrowLeft className="h-4 w-4" />
         </Button>
@@ -477,7 +478,7 @@ export default function DecidePage() {
       </div>
 
       {/* ── Two-column layout on desktop ──────────────────────────────────────── */}
-      <div className="lg:flex lg:gap-5 lg:items-start">
+      <div className="lg:flex lg:gap-6 lg:items-start">
 
       {/* Mobile: compact standing summary */}
       <div className="lg:hidden mb-4 bg-white rounded-xl border border-[#E5E0DA] shadow-sm p-3">
@@ -658,10 +659,12 @@ export default function DecidePage() {
             </CardHeader>
             <CardContent className="space-y-4">
               {/* Plain-English explainer */}
-              <div className="bg-[#F5F2EE] rounded-lg px-3 py-2 text-xs text-[#6B6560] space-y-0.5">
-                <p><span className="font-semibold text-[#2D8A5E]">Borrow 0–3% →</span> safe, helps fund spending shortfalls</p>
-                <p><span className="font-semibold text-[#D4943A]">Borrow 4–6% →</span> manageable but watch your debt total</p>
-                <p><span className="font-semibold text-[#C4443A]">Borrow 7%+ →</span> credit rating drops, GDP penalty when debt/GDP &gt; 60%</p>
+              <div className="bg-[#F5F2EE] rounded-lg px-3 py-2 text-xs text-[#6B6560] space-y-1">
+                <p className="font-semibold text-[#1A1A1A] text-[10px] uppercase tracking-wider mb-1">How Borrowing Works</p>
+                <p>📈 <span className="font-semibold text-[#2D8A5E]">Borrowing ↑</span> → Budget ↑ → more infra spend → GDP Growth ↑ <span className="text-[#9E9890]">(this round)</span></p>
+                <p>💸 <span className="font-semibold text-[#D4943A]">Borrowing ↑</span> → Debt/GDP ↑ → Debt service ↑ → Future budget ↓ <span className="text-[#9E9890]">(next rounds)</span></p>
+                <p>⚠️ <span className="font-semibold text-[#C4443A]">Debt &gt; 35%</span> → GDP penalty activates. <span className="font-semibold">Debt &gt; 60%</span> → penalty accelerates.</p>
+                <p>🔥 <span className="font-semibold text-[#C4443A]">Deficit &gt; 3%</span> → fiscal inflation adds to price pressure.</p>
               </div>
 
               <div className="flex items-center justify-between">
@@ -689,17 +692,17 @@ export default function DecidePage() {
                     className={`h-full rounded-full transition-all ${newDebt > 60 ? "bg-[#C4443A]" : newDebt > 45 ? "bg-[#D4943A]" : "bg-[#2D8A5E]"}`}
                     style={{ width: `${Math.min(newDebt, 100)}%` }}
                   />
-                  {/* 60% threshold marker */}
+                  {/* 35% threshold marker */}
                   <div
                     className="absolute top-0 bottom-0 w-0.5 bg-[#D4943A]"
-                    style={{ left: "60%" }}
+                    style={{ left: "35%" }}
                   >
-                    <span className="absolute -top-5 -translate-x-1/2 text-[9px] text-[#D4943A] whitespace-nowrap font-mono">⚠ 60%</span>
+                    <span className="absolute -top-5 -translate-x-1/2 text-[9px] text-[#D4943A] whitespace-nowrap font-mono">⚠ 35%</span>
                   </div>
                 </div>
-                {newDebt > 60 && (
+                {newDebt > 35 && (
                   <p className="text-xs text-[#C4443A] font-medium flex items-center gap-1">
-                    <AlertTriangle className="h-3 w-3" /> GDP penalty active above 60% threshold
+                    <AlertTriangle className="h-3 w-3" /> GDP penalty active above 35% threshold
                   </p>
                 )}
                 <p className="text-xs text-[#6B6560]">
@@ -710,7 +713,7 @@ export default function DecidePage() {
               {borrowing > 5 && (
                 <div className="flex items-center gap-2 text-xs text-[#C4443A] bg-red-50 p-3 rounded-xl border border-red-100">
                   <AlertTriangle className="h-4 w-4 flex-shrink-0" />
-                  Debt accumulates with interest — penalizes GDP if total debt/GDP &gt; 60%
+                  Debt accumulates with interest — GDP penalty starts at 35%, accelerates above 60%
                 </div>
               )}
             </CardContent>
@@ -732,6 +735,12 @@ export default function DecidePage() {
             </Card>
           ) : (
             <>
+              {/* Global Resource Map — see all countries' surpluses/deficits */}
+              <GlobalCommodityBoard
+                teams={teams as unknown as Parameters<typeof GlobalCommodityBoard>[0]["teams"]}
+                myTeamId={user?.teamId ?? undefined}
+              />
+
               {/* Trade Openness slider */}
               <Card className="rounded-xl border border-[#E5E0DA] shadow-sm bg-white">
                 <CardHeader className="pb-2">

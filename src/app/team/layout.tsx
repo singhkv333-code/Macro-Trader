@@ -26,15 +26,18 @@ export default function TeamLayout({ children }: { children: React.ReactNode }) 
   return (
     <div className="min-h-screen bg-[#F8F7F4] relative">
       <GrainBackground />
-      <header className="sticky top-0 z-50 bg-[#E8792F] px-4 py-3 shadow-md">
+      <header className="sticky top-0 z-50 bg-[#D4663A] px-4 py-3 shadow-md">
         <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <div className="w-7 h-7 rounded-lg bg-white/20 flex items-center justify-center">
-              <span className="text-white text-sm font-bold font-mono">M</span>
+          <div className="flex items-center gap-3">
+            <div className="text-[10px] font-semibold text-white/70 border border-white/30 rounded px-2 py-1 tracking-wider hidden sm:block">
+              FIC · SRCC
             </div>
-            <span className="text-xl font-bold text-white font-[family-name:var(--font-dm-sans)] tracking-tight">
-              MACRO TRADER
-            </span>
+            <div className="flex items-center gap-2">
+              <span className="text-lg font-bold text-white font-[family-name:var(--font-dm-sans)] tracking-wide">
+                IMPERIUM
+              </span>
+              <span className="text-xs text-white/60 hidden sm:inline">The Fiscal Forum</span>
+            </div>
           </div>
           <div className="flex items-center gap-4">
             <span className="text-sm text-white/80 font-medium">

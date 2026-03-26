@@ -46,7 +46,7 @@ export default function AdminDashboard() {
         })
         .sort((a, b) => b.total - a.total);
 
-  const showFinalResults = game?.phase === "results" && (game?.currentRound ?? 0) >= 5;
+  const showFinalResults = game?.phase === "results" && (game?.currentRound ?? 0) >= 4;
 
   return (
     <div className="space-y-6 animate-fade-in">

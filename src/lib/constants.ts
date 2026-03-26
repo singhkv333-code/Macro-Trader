@@ -1,3 +1,6 @@
+// ─── Game Configuration ──────────────────────────────────────────────────────────
+export const MAX_ROUNDS = 4;
+
 // ─── Initial State (used for new teams when no round-0 state exists) ───────────
 export const INITIAL_STATE = {
   gdp: 1000,

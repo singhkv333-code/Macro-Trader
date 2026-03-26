@@ -333,7 +333,7 @@ export default function AdminControlPage() {
           {/* Primary action based on current phase */}
           <div className="space-y-3">
             {/* Step 1: Start Next Round (only from waiting/results) */}
-            {(phase === "waiting" || phase === "results") && (game?.currentRound || 0) < 5 && (
+            {(phase === "waiting" || phase === "results") && (game?.currentRound || 0) < 4 && (
               <Button
                 onClick={() => advancePhase("input")}
                 disabled={!!actionLoading}
@@ -372,14 +372,15 @@ export default function AdminControlPage() {
             )}
 
             {/* Step 4: Show Results (auto after sim, or manual) */}
-            {phase === "results" && (game?.currentRound || 0) < 5 && (
+            {phase === "results" && (game?.currentRound || 0) < 4 && (
               <div className="text-center text-sm text-gray-400 py-2">
                 Results are live! Click &quot;Start Round {nextRound}&quot; above when ready to continue.
+                {nextRound > 4 && <span className="block text-amber-400 mt-1">⚠ This is beyond round 4 — game should be over.</span>}
               </div>
             )}
 
             {/* Game over */}
-            {(game?.currentRound || 0) >= 5 && phase === "results" && (
+            {(game?.currentRound || 0) >= 4 && phase === "results" && (
               <div className="text-center py-4">
                 <p className="text-xl font-bold text-[#E8792F]">Game Complete!</p>
                 <p className="text-sm text-gray-400 mt-1">All 5 rounds have been played. Check the dashboard for final scores.</p>

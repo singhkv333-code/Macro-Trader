@@ -89,13 +89,13 @@ export function calculateGDPGrowth(params: {
   const taxDrag = 25 * Math.pow(Math.max(0, taxRatePct - 0.28), 2)
                 + 8  * Math.pow(Math.max(0, 0.12 - taxRatePct), 2);
 
-  // 5. DEBT PENALTY — gradual from 40%, accelerating at 80%
+  // 5. DEBT PENALTY — gradual from 35%, accelerating at 60%
   const totalDebt = debtToGdp + borrowingPct;
   let debtPenalty = 0;
-  if (totalDebt >= 0.4 && totalDebt < 0.8) {
-    debtPenalty = 0.25 * Math.pow((totalDebt - 0.4) / 0.4, 1.2);
-  } else if (totalDebt >= 0.8) {
-    debtPenalty = 0.25 + 0.35 * Math.pow(totalDebt - 0.8, 1.5);
+  if (totalDebt >= 0.35 && totalDebt < 0.60) {
+    debtPenalty = 0.20 * Math.pow((totalDebt - 0.35) / 0.25, 1.2);
+  } else if (totalDebt >= 0.60) {
+    debtPenalty = 0.20 + 0.30 * Math.pow(totalDebt - 0.60, 1.5);
   }
 
   // 6. RESOURCE PENALTY — simplified; 0.1% per unmet unit below 5 total imports

@@ -25,7 +25,6 @@ import { LeaderboardBars } from "@/components/game/LeaderboardBars";
 import { NewsTicker } from "@/components/game/NewsTicker";
 import { RoundIntroOverlay } from "@/components/game/RoundIntroOverlay";
 import { CountryBriefing } from "@/components/game/CountryBriefing";
-import { GlobalCommodityBoard } from "@/components/game/GlobalCommodityBoard";
 
 function getMetricStatus(key: string, value: number): "healthy" | "warning" | "critical" {
   switch (key) {
@@ -222,7 +221,7 @@ export default function TeamDashboard() {
   const profile = (myTeam as unknown as { countryProfile?: Record<string, unknown> })?.countryProfile;
 
   return (
-    <div className="space-y-5 animate-fade-in pb-32 lg:pb-8">
+    <div className="space-y-6 animate-fade-in pb-32 lg:pb-8">
       {/* ── Country Briefing (first login) ── */}
       {showBriefing && profile && (
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -433,16 +432,10 @@ export default function TeamDashboard() {
         );
       })()}
 
-      {/* ── Global Commodity Board ── */}
-      <GlobalCommodityBoard
-        teams={teams as unknown as Parameters<typeof GlobalCommodityBoard>[0]["teams"]}
-        myTeamId={user?.teamId ?? undefined}
-      />
-
       {/* ── Context bar ── */}
       <div className="bg-white border border-[#E5E0DA] border-l-4 border-l-[#E8792F] rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
         <span className="font-semibold text-[#1A1A1A] font-(family-name:--font-dm-sans)">
-          Round {currentRound} of 5
+          Round {currentRound} of 4
         </span>
         {scenario && currentRound > 0 && (
           <>
@@ -484,10 +477,10 @@ export default function TeamDashboard() {
         );
       })()}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* ══ Column 1: Your Economy ══ */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-5">
           <h2 className="text-xs font-semibold text-[#6B6560] uppercase tracking-widest">
             Your Economy
           </h2>
@@ -503,7 +496,7 @@ export default function TeamDashboard() {
           />
 
           {/* Primary metrics — big cards with sparklines */}
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-4">
             <MetricCard
               label="GDP Growth"
               value={currentState?.gdpGrowth ?? 0}
@@ -544,7 +537,7 @@ export default function TeamDashboard() {
         </div>
 
         {/* ══ Column 2: Global Intelligence ══ */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-5">
           <h2 className="text-xs font-semibold text-[#6B6560] uppercase tracking-widest flex items-center gap-2">
             <Globe className="h-3.5 w-3.5" /> Global Intelligence
           </h2>
@@ -662,7 +655,7 @@ export default function TeamDashboard() {
         </div>
 
         {/* ══ Column 3: Leaderboard, Country Passport & News ══ */}
-        <div className="lg:col-span-1 space-y-4">
+        <div className="lg:col-span-1 space-y-5">
           {/* Desktop submitted state */}
           {game?.phase === "input" && hasSubmittedThisRound && (
             <div className="hidden lg:flex items-center gap-3 w-full bg-[#2D8A5E]/8 border border-[#2D8A5E]/30 rounded-xl p-4">
@@ -674,16 +667,18 @@ export default function TeamDashboard() {
             </div>
           )}
 
-          {/* Leaderboard */}
-          <div>
-            <h2 className="text-xs font-semibold text-[#6B6560] uppercase tracking-widest mb-3 flex items-center gap-2">
-              <Briefcase className="h-3.5 w-3.5" /> Standings
-            </h2>
-            <LeaderboardBars
-              entries={leaderboardEntries}
-              visible={game?.isLeaderboardVisible ?? true}
-            />
-          </div>
+          {/* Leaderboard — only visible when results are posted for at least 1 round */}
+          {game?.phase === "results" && currentRound >= 1 && (
+            <div>
+              <h2 className="text-xs font-semibold text-[#6B6560] uppercase tracking-widest mb-3 flex items-center gap-2">
+                <Briefcase className="h-3.5 w-3.5" /> Standings
+              </h2>
+              <LeaderboardBars
+                entries={leaderboardEntries}
+                visible={game?.isLeaderboardVisible ?? true}
+              />
+            </div>
+          )}
 
         </div>
       </div>
