@@ -25,6 +25,7 @@ import { LeaderboardBars } from "@/components/game/LeaderboardBars";
 import { NewsTicker } from "@/components/game/NewsTicker";
 import { RoundIntroOverlay } from "@/components/game/RoundIntroOverlay";
 import { CountryBriefing } from "@/components/game/CountryBriefing";
+import { GlobalCommodityBoard } from "@/components/game/GlobalCommodityBoard";
 
 function getMetricStatus(key: string, value: number): "healthy" | "warning" | "critical" {
   switch (key) {
@@ -431,6 +432,12 @@ export default function TeamDashboard() {
           </div>
         );
       })()}
+
+      {/* ── Global Commodity Board ── */}
+      <GlobalCommodityBoard
+        teams={teams as unknown as Parameters<typeof GlobalCommodityBoard>[0]["teams"]}
+        myTeamId={user?.teamId ?? undefined}
+      />
 
       {/* ── Context bar ── */}
       <div className="bg-white border border-[#E5E0DA] border-l-4 border-l-[#E8792F] rounded-xl px-4 py-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
